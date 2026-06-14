@@ -2,6 +2,7 @@ import { requireUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/ui";
 import { SocialVerifyWizard } from "@/components/SocialVerifyWizard";
+import { instagram } from "@/lib/instagram";
 
 // Instagram scraping (Apify sync runs) can take longer than the default limit.
 export const maxDuration = 60;
@@ -13,12 +14,26 @@ export default async function SocialPage() {
     orderBy: { createdAt: "desc" },
   });
 
+  const igLive = instagram().mode === "live";
+
   return (
     <>
       <PageHeader
         title="Social Verification"
         subtitle="Verify your social media accounts to start submitting content."
       />
+
+      <div className="mb-5">
+        <span
+          className={`pill ${
+            igLive
+              ? "bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500/25"
+              : "bg-amber-500/15 text-amber-400 ring-1 ring-amber-500/25"
+          }`}
+        >
+          {igLive ? "Live Instagram data" : "Demo data (mock) — set APIFY_TOKEN for live"}
+        </span>
+      </div>
 
       <SocialVerifyWizard accounts={accounts} />
 
