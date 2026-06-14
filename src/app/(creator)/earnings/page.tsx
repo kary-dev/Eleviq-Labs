@@ -2,7 +2,7 @@ import { requireUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { PageHeader, StatCard, EmptyState, StatusPill } from "@/components/ui";
 import { SubmissionRow } from "@/components/SubmissionRow";
-import { money, compact, date } from "@/lib/format";
+import { money, compact, date, payoutProgress, PAYOUT_VIEW_THRESHOLD } from "@/lib/format";
 import { WalletIcon } from "@/components/icons";
 
 export default async function EarningsPage() {
@@ -24,7 +24,21 @@ export default async function EarningsPage() {
 
   const totalEarned = approved.reduce((a, s) => a + s.payout, 0);
   const paid = payouts.filter((p) => p.status === "PAID").reduce((a, p) => a + p.amount, 0);
-  const available = totalEarned - paid;
+
+  // Group approved clips per campaign to apply the 20,000-view payout threshold.
+  const byCampaign = new Map<string, { title: string; brand: string; views: number; payout: number }>();
+  for (const s of approved) {
+    const cur = byCampaign.get(s.campaignId) ?? { title: s.campaign.title, brand: s.campaign.brand, views: 0, payout: 0 };
+    cur.views += s.views;
+    cur.payout += s.payout;
+    byCampaign.set(s.campaignId, cur);
+  }
+  const campaignRows = [...byCampaign.values()].sort((a, b) => b.views - a.views);
+
+  // Only earnings from campaigns past the view threshold can be withdrawn.
+  const eligibleEarned = campaignRows.filter((c) => c.views >= PAYOUT_VIEW_THRESHOLD).reduce((a, c) => a + c.payout, 0);
+  const lockedEarned = totalEarned - eligibleEarned;
+  const available = Math.max(0, eligibleEarned - paid);
 
   return (
     <>
@@ -32,9 +46,63 @@ export default async function EarningsPage() {
 
       <div className="mb-9 grid gap-4 sm:grid-cols-3">
         <StatCard label="Total Earned" value={money(totalEarned)} hint="From approved clips" />
-        <StatCard label="Available to Withdraw" value={money(Math.max(0, available))} hint={`${money(paid)} paid out`} />
+        <StatCard
+          label="Available to Withdraw"
+          value={money(available)}
+          hint={lockedEarned > 0 ? `${money(lockedEarned)} locked · ${money(paid)} paid out` : `${money(paid)} paid out`}
+        />
         <StatCard label="Pending Review" value={money(pendingSubs._sum.payout ?? 0)} hint={`${pendingSubs._count} clips awaiting approval`} />
       </div>
+
+      {/* Payout eligibility — reach 20,000 views per campaign to unlock */}
+      {campaignRows.length > 0 && (
+        <section className="mb-9">
+          <h2 className="mb-4 font-display text-lg font-bold">Payout eligibility</h2>
+          <p className="mb-4 -mt-2 text-sm text-muted">
+            Earnings unlock once a campaign reaches {PAYOUT_VIEW_THRESHOLD.toLocaleString("en-US")} views.
+          </p>
+          <div className="card divide-y divide-border">
+            {campaignRows.map((c) => {
+              const prog = payoutProgress(c.views);
+              return (
+                <div key={c.title} className="px-4 py-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold">{c.title}</p>
+                      <p className="text-xs text-muted">{c.brand}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-display font-bold text-accent">{money(c.payout)}</p>
+                      <p className={`text-[11px] ${prog.eligible ? "text-emerald-400" : "text-muted"}`}>
+                        {prog.eligible ? "Unlocked" : "Locked"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-3">
+                    <div className="mb-1 flex justify-between text-xs">
+                      <span className="text-muted">Views</span>
+                      <span className={prog.eligible ? "font-medium text-emerald-400" : "text-muted"}>
+                        {prog.views.toLocaleString("en-US")} / {prog.threshold.toLocaleString("en-US")}
+                      </span>
+                    </div>
+                    <div className="h-2 overflow-hidden rounded-full bg-surface-2">
+                      <div
+                        className={`h-full rounded-full transition-all ${prog.eligible ? "bg-emerald-500" : "bg-accent"}`}
+                        style={{ width: `${prog.pct}%` }}
+                      />
+                    </div>
+                    {!prog.eligible && (
+                      <p className="mt-1 text-xs text-muted">
+                        {prog.remaining.toLocaleString("en-US")} more views to unlock payout
+                      </p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {/* Payout history */}
       <section className="mb-9">

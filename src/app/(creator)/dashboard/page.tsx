@@ -9,7 +9,7 @@ import { money, compact } from "@/lib/format";
 export default async function DashboardPage() {
   const user = await requireUser();
 
-  const [activeCampaigns, submissions, participations, paidAgg] = await Promise.all([
+  const [activeCampaigns, submissions, participations, paidAgg, approvedByCampaign] = await Promise.all([
     prisma.campaign.findMany({ where: { status: "ACTIVE" }, orderBy: { createdAt: "desc" } }),
     prisma.submission.findMany({
       where: { userId: user.id },
@@ -21,9 +21,15 @@ export default async function DashboardPage() {
       where: { userId: user.id, status: "APPROVED" },
       _sum: { payout: true, views: true },
     }),
+    prisma.submission.groupBy({
+      by: ["campaignId"],
+      where: { userId: user.id, status: "APPROVED" },
+      _sum: { views: true },
+    }),
   ]);
 
   const joinedIds = new Set(participations.map((p) => p.campaignId));
+  const viewsByCampaign = new Map(approvedByCampaign.map((a) => [a.campaignId, a._sum.views ?? 0]));
   const totalViews = submissions.reduce((a, s) => a + s.views, 0);
   const totalEarned = paidAgg._sum.payout ?? 0;
 
@@ -78,7 +84,12 @@ export default async function DashboardPage() {
         ) : (
           <div className="grid gap-5 md:grid-cols-2">
             {activeCampaigns.map((c) => (
-              <CampaignCard key={c.id} campaign={c} joined={joinedIds.has(c.id)} />
+              <CampaignCard
+                key={c.id}
+                campaign={c}
+                joined={joinedIds.has(c.id)}
+                views={viewsByCampaign.get(c.id) ?? 0}
+              />
             ))}
           </div>
         )}

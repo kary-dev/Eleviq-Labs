@@ -62,7 +62,12 @@ function Section({
       <h2 className="mb-4 font-display text-lg font-bold">{title}</h2>
       <div className="grid gap-5 md:grid-cols-2">
         {items.map((p) => (
-          <CampaignCard key={p.campaignId} campaign={p.campaign} joined />
+          <CampaignCard
+            key={p.campaignId}
+            campaign={p.campaign}
+            joined
+            views={earnMap.get(p.campaignId)?.views ?? 0}
+          />
         ))}
       </div>
     </section>
