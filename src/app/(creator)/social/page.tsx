@@ -3,6 +3,9 @@ import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/ui";
 import { SocialVerifyWizard } from "@/components/SocialVerifyWizard";
 
+// Instagram scraping (Apify sync runs) can take longer than the default limit.
+export const maxDuration = 60;
+
 export default async function SocialPage() {
   const user = await requireUser();
   const accounts = await prisma.socialAccount.findMany({

@@ -4,6 +4,9 @@ import { PageHeader, EmptyState } from "@/components/ui";
 import { CampaignCard } from "@/components/CampaignCard";
 import { MegaphoneIcon } from "@/components/icons";
 
+// addClip re-fetches the post via Instagram scraping, which can be slow.
+export const maxDuration = 60;
+
 export default async function CampaignsPage() {
   const user = await requireUser();
 

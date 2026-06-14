@@ -6,6 +6,9 @@ import { SubmissionRow } from "@/components/SubmissionRow";
 import { DiscordIcon, MegaphoneIcon } from "@/components/icons";
 import { money, compact, payoutProgress } from "@/lib/format";
 
+// addClip re-fetches the post via Instagram scraping, which can be slow.
+export const maxDuration = 60;
+
 export default async function DashboardPage() {
   const user = await requireUser();
 

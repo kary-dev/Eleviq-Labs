@@ -189,6 +189,84 @@ class RapidApiInstagram implements InstagramProvider {
   }
 }
 
+// --- Apify provider --------------------------------------------------------
+
+/**
+ * Apify Instagram scrapers via the run-sync API (waits for the run and returns
+ * dataset items in one call). Generous free tier (~$5 monthly credits).
+ *   - profiles: apify/instagram-profile-scraper  (input { usernames: [...] })
+ *   - posts:    apify/instagram-scraper          (input { directUrls, resultsType: "posts" })
+ * Actor ids are overridable via env in case you fork/swap actors.
+ */
+class ApifyInstagram implements InstagramProvider {
+  readonly mode = "live" as const;
+  private token: string;
+  private profileActor: string;
+  private postActor: string;
+
+  constructor(token: string) {
+    this.token = token;
+    this.profileActor = process.env.APIFY_PROFILE_ACTOR || "apify~instagram-profile-scraper";
+    this.postActor = process.env.APIFY_POST_ACTOR || "apify~instagram-scraper";
+  }
+
+  private async run(actor: string, input: unknown): Promise<any[] | null> {
+    const res = await fetch(
+      `https://api.apify.com/v2/acts/${actor}/run-sync-get-dataset-items?token=${this.token}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+        cache: "no-store",
+      }
+    );
+    if (!res.ok) return null;
+    const json = await res.json().catch(() => null);
+    return Array.isArray(json) ? json : null;
+  }
+
+  async getProfile(username: string): Promise<IgProfile | null> {
+    const u = normalizeHandle(username);
+    const items = await this.run(this.profileActor, { usernames: [u] });
+    const d = items?.[0];
+    if (!d || !(d.username || d.id)) return null;
+    return {
+      username: (d.username ?? u).toLowerCase(),
+      fullName: d.fullName ?? d.full_name ?? null,
+      biography: d.biography ?? d.bio ?? "",
+      avatarUrl: d.profilePicUrlHD ?? d.profilePicUrl ?? d.profile_pic_url ?? null,
+      followers: Number(d.followersCount ?? d.followers ?? 0),
+      isProfessional: Boolean(
+        d.isBusinessAccount ?? d.is_business_account ?? d.businessCategoryName ?? d.isProfessionalAccount ?? false
+      ),
+      isPrivate: Boolean(d.private ?? d.isPrivate ?? d.is_private ?? false),
+      userId: d.id ? String(d.id) : null,
+    };
+  }
+
+  async getPost(url: string): Promise<IgPost | null> {
+    const items = await this.run(this.postActor, {
+      directUrls: [url],
+      resultsType: "posts",
+      resultsLimit: 1,
+      addParentData: false,
+    });
+    const d = items?.[0];
+    if (!d) return null;
+    const owner = String(d.ownerUsername ?? d.owner?.username ?? "").toLowerCase();
+    if (!owner) return null;
+    return {
+      url,
+      shortcode: d.shortCode ?? d.shortcode ?? extractShortcode(url),
+      ownerUsername: owner,
+      views: Number(d.videoViewCount ?? d.videoPlayCount ?? d.viewCount ?? d.likesCount ?? 0),
+      likes: Number(d.likesCount ?? d.likeCount ?? 0),
+      caption: d.caption ?? d.captionText ?? null,
+      thumbnailUrl: d.displayUrl ?? d.thumbnailUrl ?? null,
+    };
+  }
+}
+
 // --- Factory ---------------------------------------------------------------
 
 /**
@@ -205,10 +283,13 @@ let cached: InstagramProvider | null = null;
 
 export function instagram(): InstagramProvider {
   if (cached) return cached;
+  const apifyToken = process.env.APIFY_TOKEN;
   const key = process.env.RAPIDAPI_KEY;
   const host = process.env.RAPIDAPI_INSTAGRAM_HOST || "instagram-scraper-api2.p.rapidapi.com";
 
-  if (key) {
+  if (apifyToken) {
+    cached = new ApifyInstagram(apifyToken);
+  } else if (key) {
     cached = new RapidApiInstagram(key, host);
   } else if (process.env.NODE_ENV === "production" && process.env.ALLOW_MOCK_INSTAGRAM !== "true") {
     // No real key in production and mock not explicitly allowed → don't fake-verify.
