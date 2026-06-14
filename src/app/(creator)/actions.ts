@@ -112,3 +112,59 @@ export async function saveBank(formData: FormData) {
   });
   revalidatePath("/bank");
 }
+
+// --- Referrals --------------------------------------------------------------
+
+// Readable code: no ambiguous characters (0/O, 1/I/L).
+const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+function randomCode(len = 6) {
+  let out = "";
+  for (let i = 0; i < len; i++) out += CODE_ALPHABET[Math.floor(Math.random() * CODE_ALPHABET.length)];
+  return out;
+}
+
+/** Creates a unique referral code for the current user (no-op if they already have one). */
+export async function generateReferralCode() {
+  const userId = await uid();
+  const me = await prisma.user.findUnique({ where: { id: userId }, select: { referralCode: true } });
+  if (me?.referralCode) return me.referralCode;
+
+  // Retry until we land a code not already taken.
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const code = randomCode();
+    const clash = await prisma.user.findUnique({ where: { referralCode: code }, select: { id: true } });
+    if (clash) continue;
+    await prisma.user.update({ where: { id: userId }, data: { referralCode: code } });
+    revalidatePath("/referrals");
+    return code;
+  }
+  throw new Error("Could not generate a unique code, please try again");
+}
+
+export type ApplyResult = { ok: boolean; message: string };
+
+/** Redeems a referral code shared with the current (new) creator. */
+export async function applyReferralCode(formData: FormData): Promise<ApplyResult> {
+  const userId = await uid();
+  const code = String(formData.get("code") ?? "").trim().toUpperCase();
+  if (!code) return { ok: false, message: "Enter a referral code." };
+
+  const me = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, referredById: true, referralCode: true, _count: { select: { submissions: true } } },
+  });
+  if (!me) return { ok: false, message: "Account not found." };
+  if (me.referredById) return { ok: false, message: "You've already applied a referral code." };
+
+  // Only new accounts that haven't earned rewards yet can redeem.
+  const earned = await prisma.submission.count({ where: { userId, status: "APPROVED" } });
+  if (earned > 0) return { ok: false, message: "Codes only work for new accounts that haven't earned rewards yet." };
+
+  const owner = await prisma.user.findUnique({ where: { referralCode: code }, select: { id: true } });
+  if (!owner) return { ok: false, message: "That referral code isn't valid." };
+  if (owner.id === userId) return { ok: false, message: "You can't apply your own code." };
+
+  await prisma.user.update({ where: { id: userId }, data: { referredById: owner.id } });
+  revalidatePath("/referrals");
+  return { ok: true, message: "Referral code applied — your earnings boost is active!" };
+}

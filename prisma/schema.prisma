@@ -19,8 +19,8 @@ model User {
   image         String?
   role          Role      @default(CREATOR)
 
-  // Referral system
-  referralCode String  @unique @default(cuid())
+  // Referral system — code is null until the creator generates one
+  referralCode String? @unique
   referredById String?
   referredBy   User?   @relation("Referrals", fields: [referredById], references: [id])
   referrals    User[]  @relation("Referrals")
