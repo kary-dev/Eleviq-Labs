@@ -4,12 +4,12 @@ import { StatCard, EmptyState } from "@/components/ui";
 import { CampaignCard } from "@/components/CampaignCard";
 import { SubmissionRow } from "@/components/SubmissionRow";
 import { DiscordIcon, MegaphoneIcon } from "@/components/icons";
-import { money, compact } from "@/lib/format";
+import { money, compact, payoutProgress } from "@/lib/format";
 
 export default async function DashboardPage() {
   const user = await requireUser();
 
-  const [activeCampaigns, submissions, participations, paidAgg, approvedByCampaign] = await Promise.all([
+  const [activeCampaigns, submissions, participations, paidAgg] = await Promise.all([
     prisma.campaign.findMany({ where: { status: "ACTIVE" }, orderBy: { createdAt: "desc" } }),
     prisma.submission.findMany({
       where: { userId: user.id },
@@ -21,17 +21,12 @@ export default async function DashboardPage() {
       where: { userId: user.id, status: "APPROVED" },
       _sum: { payout: true, views: true },
     }),
-    prisma.submission.groupBy({
-      by: ["campaignId"],
-      where: { userId: user.id, status: "APPROVED" },
-      _sum: { views: true },
-    }),
   ]);
 
   const joinedIds = new Set(participations.map((p) => p.campaignId));
-  const viewsByCampaign = new Map(approvedByCampaign.map((a) => [a.campaignId, a._sum.views ?? 0]));
   const totalViews = submissions.reduce((a, s) => a + s.views, 0);
   const totalEarned = paidAgg._sum.payout ?? 0;
+  const viewsElig = payoutProgress(totalViews);
 
   return (
     <>
@@ -65,7 +60,11 @@ export default async function DashboardPage() {
       {/* Stats */}
       <div className="mb-9 grid gap-4 sm:grid-cols-3">
         <StatCard label="Posts" value={submissions.length} hint={`${submissions.filter((s) => s.status === "PENDING").length} pending review`} />
-        <StatCard label="Total Views" value={compact(totalViews)} />
+        <StatCard
+          label="Total Views"
+          value={`${compact(totalViews)} / 20K`}
+          hint={viewsElig.eligible ? "✓ Eligible for payout" : `${compact(viewsElig.remaining)} more views to unlock payout`}
+        />
         <StatCard label="Total Earned" value={money(totalEarned)} hint="From approved clips" />
       </div>
 
@@ -84,12 +83,7 @@ export default async function DashboardPage() {
         ) : (
           <div className="grid gap-5 md:grid-cols-2">
             {activeCampaigns.map((c) => (
-              <CampaignCard
-                key={c.id}
-                campaign={c}
-                joined={joinedIds.has(c.id)}
-                views={viewsByCampaign.get(c.id) ?? 0}
-              />
+              <CampaignCard key={c.id} campaign={c} joined={joinedIds.has(c.id)} />
             ))}
           </div>
         )}

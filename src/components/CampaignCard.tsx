@@ -2,7 +2,7 @@ import { AddClipDialog } from "@/components/AddClipDialog";
 import { JoinButton } from "@/components/JoinButton";
 import { StatusPill } from "@/components/ui";
 import { PLATFORMS, PlatformKey } from "@/lib/platforms";
-import { money, compact, payoutProgress } from "@/lib/format";
+import { money, compact } from "@/lib/format";
 
 export type CampaignCardData = {
   id: string;
@@ -21,17 +21,13 @@ export type CampaignCardData = {
 export function CampaignCard({
   campaign,
   joined,
-  views = 0,
 }: {
   campaign: CampaignCardData;
   joined?: boolean;
-  /** The creator's approved views on this campaign (drives payout eligibility). */
-  views?: number;
 }) {
   const pct = Math.min(100, Math.round((campaign.totalBudgetUsed / campaign.budget) * 100));
   const plats = campaign.platforms.split(",").filter(Boolean) as PlatformKey[];
   const ended = campaign.status === "ENDED";
-  const prog = payoutProgress(views);
 
   return (
     <div className="card flex flex-col p-5">
@@ -79,29 +75,6 @@ export function CampaignCard({
           <div className="h-full rounded-full bg-accent transition-all" style={{ width: `${pct}%` }} />
         </div>
       </div>
-
-      {/* Payout progress — eligible at 20,000 views on this campaign */}
-      {joined && (
-        <div className="mt-4">
-          <div className="mb-1 flex justify-between text-xs">
-            <span className="text-muted">Payout progress</span>
-            <span className={prog.eligible ? "font-medium text-emerald-400" : "text-muted"}>
-              {prog.views.toLocaleString("en-US")} / {prog.threshold.toLocaleString("en-US")} views
-            </span>
-          </div>
-          <div className="h-2 overflow-hidden rounded-full bg-surface-2">
-            <div
-              className={`h-full rounded-full transition-all ${prog.eligible ? "bg-emerald-500" : "bg-accent"}`}
-              style={{ width: `${prog.pct}%` }}
-            />
-          </div>
-          <p className={`mt-1 text-xs ${prog.eligible ? "text-emerald-400" : "text-muted"}`}>
-            {prog.eligible
-              ? "✓ Eligible for payout"
-              : `${prog.remaining.toLocaleString("en-US")} more views to unlock payout`}
-          </p>
-        </div>
-      )}
 
       <div className="mt-5">
         {ended ? (

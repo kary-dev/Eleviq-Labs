@@ -73,7 +73,7 @@ body {
 
 @layer components {
   .card {
-    @apply rounded-2xl border border-border bg-surface/80 backdrop-blur-sm;
+    @apply rounded-lg border border-border bg-surface/80 backdrop-blur-sm;
   }
   .btn {
     @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all duration-150 disabled:opacity-50 disabled:pointer-events-none;

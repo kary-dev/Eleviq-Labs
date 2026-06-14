@@ -13,14 +13,6 @@ export default async function CampaignsPage() {
     orderBy: { createdAt: "desc" },
   });
 
-  // Earnings per campaign
-  const earnings = await prisma.submission.groupBy({
-    by: ["campaignId"],
-    where: { userId: user.id, status: "APPROVED" },
-    _sum: { payout: true, views: true },
-  });
-  const earnMap = new Map(earnings.map((e) => [e.campaignId, e._sum]));
-
   const active = participations.filter((p) => p.campaign.status === "ACTIVE");
   const past = participations.filter((p) => p.campaign.status !== "ACTIVE");
 
@@ -39,8 +31,8 @@ export default async function CampaignsPage() {
         />
       ) : (
         <div className="space-y-9">
-          <Section title="Active" items={active} earnMap={earnMap} />
-          {past.length > 0 && <Section title="Past campaigns" items={past} earnMap={earnMap} />}
+          <Section title="Active" items={active} />
+          {past.length > 0 && <Section title="Past campaigns" items={past} />}
         </div>
       )}
     </>
@@ -50,11 +42,9 @@ export default async function CampaignsPage() {
 function Section({
   title,
   items,
-  earnMap,
 }: {
   title: string;
   items: { campaign: any; campaignId: string }[];
-  earnMap: Map<string, { payout: number | null; views: number | null } | undefined>;
 }) {
   if (items.length === 0) return null;
   return (
@@ -62,12 +52,7 @@ function Section({
       <h2 className="mb-4 font-display text-lg font-bold">{title}</h2>
       <div className="grid gap-5 md:grid-cols-2">
         {items.map((p) => (
-          <CampaignCard
-            key={p.campaignId}
-            campaign={p.campaign}
-            joined
-            views={earnMap.get(p.campaignId)?.views ?? 0}
-          />
+          <CampaignCard key={p.campaignId} campaign={p.campaign} joined />
         ))}
       </div>
     </section>
