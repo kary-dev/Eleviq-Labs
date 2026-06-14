@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
-import { Inter, Space_Grotesk } from "next/font/google";
+// Secondary font (headings): Open Sauce Sans. Main font (body): Helvetica (system).
+import "@fontsource/open-sauce-sans/400.css";
+import "@fontsource/open-sauce-sans/500.css";
+import "@fontsource/open-sauce-sans/600.css";
+import "@fontsource/open-sauce-sans/700.css";
 import "./globals.css";
 import { themeScript } from "@/components/theme";
-
-const inter = Inter({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
-const display = Space_Grotesk({ subsets: ["latin"], variable: "--font-display", display: "swap" });
 
 export const metadata: Metadata = {
   title: "Eleviq Labs — Earn from the content you create",
@@ -18,7 +19,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
-      <body className={`${inter.variable} ${display.variable} font-sans antialiased`}>
+      <body className="font-sans antialiased">
         <div className="app-backdrop" />
         {children}
       </body>

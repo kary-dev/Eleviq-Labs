@@ -3,30 +3,30 @@
 @tailwind utilities;
 
 :root {
-  /* ELEVIQ LABS — monochrome base + electric violet accent */
-  --accent: 124 92 255; /* electric violet */
-  --accent-fg: 255 255 255;
+  /* ELEVIQ LABS — orange / black / white */
+  --accent: 255 107 0; /* #FF6B00 vivid orange */
+  --accent-fg: 20 20 20; /* near-black text on orange */
 }
 
-/* Dark theme (default) */
+/* Dark theme (default) — black base */
 .dark,
 :root {
-  --bg: 9 9 12;
-  --surface: 18 18 23;
-  --surface-2: 26 26 33;
-  --border: 39 39 48;
-  --fg: 244 244 248;
-  --muted: 150 150 165;
+  --bg: 12 12 12;
+  --surface: 23 23 23;
+  --surface-2: 33 33 33;
+  --border: 46 46 46;
+  --fg: 245 245 245;
+  --muted: 161 161 161;
 }
 
-/* Light theme */
+/* Light theme — white base */
 .light {
-  --bg: 248 248 250;
+  --bg: 255 255 255;
   --surface: 255 255 255;
-  --surface-2: 244 244 247;
-  --border: 226 226 232;
-  --fg: 18 18 22;
-  --muted: 110 110 124;
+  --surface-2: 245 245 245;
+  --border: 226 226 226;
+  --fg: 17 17 17;
+  --muted: 102 102 102;
 }
 
 * {
@@ -41,7 +41,7 @@ html {
 body {
   background-color: rgb(var(--bg));
   color: rgb(var(--fg));
-  font-family: var(--font-sans), system-ui, sans-serif;
+  font-family: Helvetica, "Helvetica Neue", Arial, system-ui, sans-serif;
 }
 
 /* Subtle ambient gradient backdrop */

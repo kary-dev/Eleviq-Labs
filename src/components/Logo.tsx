@@ -1,8 +1,25 @@
 import Link from "next/link";
 
+/** Eleviq logo mark — an orange rounded square with an upward chevron ("elevate"). */
+export function EleviqMark({ className = "" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 32 32" className={className} aria-hidden="true" role="img">
+      <rect width="32" height="32" rx="9" fill="rgb(var(--accent))" />
+      <path
+        d="M8 21l8-10 8 10"
+        fill="none"
+        stroke="rgb(var(--accent-fg))"
+        strokeWidth="3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 /**
- * Eleviq Labs wordmark — recreates the stacked "ELEVIQ / LABS" lockup
- * from the brand logo using type, so it stays crisp at any size & theme.
+ * Eleviq Labs lockup — the logo mark followed by the "ELEVIQ / LABS" wordmark,
+ * built from type so it stays crisp at any size & theme.
  */
 export function Logo({
   href = "/dashboard",
@@ -15,8 +32,9 @@ export function Logo({
 }) {
   const scale =
     size === "lg" ? "text-2xl" : size === "sm" ? "text-base" : "text-lg";
+  const markSize = size === "lg" ? "h-10 w-10" : size === "sm" ? "h-7 w-7" : "h-9 w-9";
 
-  const inner = stacked ? (
+  const wordmark = stacked ? (
     <div className="flex flex-col leading-none">
       <span className={`font-display font-extrabold tracking-[0.28em] ${scale}`}>
         ELEVIQ
@@ -31,10 +49,20 @@ export function Logo({
     </span>
   );
 
-  if (!href) return <div className="select-none text-fg">{inner}</div>;
+  const inner = (
+    <>
+      <EleviqMark className={`${markSize} shrink-0`} />
+      {wordmark}
+    </>
+  );
+
+  if (!href) return <div className="flex select-none items-center gap-2.5 text-fg">{inner}</div>;
 
   return (
-    <Link href={href} className="select-none text-fg transition-opacity hover:opacity-80">
+    <Link
+      href={href}
+      className="flex select-none items-center gap-2.5 text-fg transition-opacity hover:opacity-80"
+    >
       {inner}
     </Link>
   );

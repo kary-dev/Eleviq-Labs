@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.7.4",
+    "@fontsource/open-sauce-sans": "^5.2.5",
     "@prisma/client": "^6.1.0",
     "next": "15.5.19",
     "next-auth": "5.0.0-beta.25",

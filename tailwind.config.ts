@@ -20,8 +20,9 @@ const config: Config = {
         "accent-fg": "rgb(var(--accent-fg) / <alpha-value>)",
       },
       fontFamily: {
-        sans: ["var(--font-sans)", "system-ui", "sans-serif"],
-        display: ["var(--font-display)", "system-ui", "sans-serif"],
+        // Main: Helvetica (system). Secondary: Open Sauce Sans (loaded via Fontsource).
+        sans: ["Helvetica", "Helvetica Neue", "Arial", "system-ui", "sans-serif"],
+        display: ["Open Sauce Sans", "Helvetica", "system-ui", "sans-serif"],
       },
       borderRadius: {
         xl: "0.9rem",
