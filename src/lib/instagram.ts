@@ -165,7 +165,12 @@ class RapidApiInstagram implements InstagramProvider {
       biography: d.biography ?? "",
       avatarUrl: d.profile_pic_url_hd ?? d.profile_pic_url ?? null,
       followers: Number(d.follower_count ?? d.followers ?? 0),
-      isProfessional: Boolean(d.is_business ?? d.is_professional_account ?? d.is_business_account ?? false),
+      isProfessional:
+        Boolean(d.is_business) ||
+        Boolean(d.is_professional_account) ||
+        Boolean(d.is_business_account) ||
+        Boolean(d.category) ||
+        Boolean(d.business_category_name),
       isPrivate: Boolean(d.is_private ?? false),
       userId: d.id ? String(d.id) : d.pk ? String(d.pk) : null,
     };
@@ -236,9 +241,16 @@ class ApifyInstagram implements InstagramProvider {
       biography: d.biography ?? d.bio ?? "",
       avatarUrl: d.profilePicUrlHD ?? d.profilePicUrl ?? d.profile_pic_url ?? null,
       followers: Number(d.followersCount ?? d.followers ?? 0),
-      isProfessional: Boolean(
-        d.isBusinessAccount ?? d.is_business_account ?? d.businessCategoryName ?? d.isProfessionalAccount ?? false
-      ),
+      // Professional = Business OR Creator. The scraper only sets isBusinessAccount
+      // for business accounts, so a non-empty business category catches creators.
+      isProfessional:
+        Boolean(d.isBusinessAccount) ||
+        Boolean(d.is_business_account) ||
+        Boolean(d.isProfessionalAccount) ||
+        Boolean(d.is_professional_account) ||
+        Boolean(d.businessCategoryName) ||
+        Boolean(d.businessCategory) ||
+        Boolean(d.category),
       isPrivate: Boolean(d.private ?? d.isPrivate ?? d.is_private ?? false),
       userId: d.id ? String(d.id) : null,
     };

@@ -198,6 +198,13 @@ export async function startInstagramVerification(formData: FormData): Promise<St
   const profile = await instagram().getProfile(handle);
   if (!profile) return { ok: false, message: "We couldn't find that Instagram account." };
   if (profile.isPrivate) return { ok: false, message: "Your account is private — make it public to verify." };
+  if (!profile.isProfessional) {
+    return {
+      ok: false,
+      message:
+        "This looks like a personal account. First switch to a Professional account on Instagram (Settings → Account type and tools → Switch to professional account), then verify again.",
+    };
+  }
 
   // Don't let two creators claim the same handle.
   const taken = await prisma.socialAccount.findFirst({
