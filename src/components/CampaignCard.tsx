@@ -1,4 +1,5 @@
 import { AddClipDialog } from "@/components/AddClipDialog";
+import { JoinButton } from "@/components/JoinButton";
 import { StatusPill } from "@/components/ui";
 import { PLATFORMS, PlatformKey } from "@/lib/platforms";
 import { money, compact, payoutProgress } from "@/lib/format";
@@ -105,8 +106,10 @@ export function CampaignCard({
       <div className="mt-5">
         {ended ? (
           <button disabled className="btn-soft w-full">Campaign ended</button>
-        ) : (
+        ) : joined ? (
           <AddClipDialog campaign={campaign} trigger="block" />
+        ) : (
+          <JoinButton campaignId={campaign.id} />
         )}
       </div>
     </div>
