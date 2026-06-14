@@ -3,31 +3,32 @@
 @tailwind utilities;
 
 :root {
-  /* ELEVIQ LABS — dark orange on a warm black / white base */
-  --accent: 234 88 12; /* #EA580C rich dark orange */
-  --accent-2: 249 115 22; /* #F97316 brighter orange for gradients/glow */
-  --accent-fg: 255 255 255; /* white text on orange */
+  /* ELEVIQ LABS — red / cream / navy / blue palette */
+  --accent: 193 18 31; /* #C1121F red — primary */
+  --accent-2: 120 0 0; /* #780000 deep red — depth & glow */
+  --accent-blue: 102 155 188; /* #669BBC blue — secondary / ambient */
+  --accent-fg: 253 240 213; /* #FDF0D5 cream — text on red */
 }
 
-/* Dark theme (default) — warm near-black */
+/* Dark theme (default) — navy base, cream text */
 .dark,
 :root {
-  --bg: 13 11 10;
-  --surface: 24 21 19;
-  --surface-2: 33 29 26;
-  --border: 48 42 38;
-  --fg: 246 244 242;
-  --muted: 167 159 152;
+  --bg: 2 26 40; /* deep navy */
+  --surface: 0 41 62; /* navy */
+  --surface-2: 9 56 82;
+  --border: 21 74 104;
+  --fg: 253 240 213; /* cream */
+  --muted: 140 173 194; /* soft blue-gray */
 }
 
-/* Light theme — warm white */
+/* Light theme — cream base, navy text */
 .light {
-  --bg: 255 255 255;
-  --surface: 255 255 255;
-  --surface-2: 247 244 241;
-  --border: 230 225 220;
-  --fg: 23 19 16;
-  --muted: 109 102 96;
+  --bg: 253 240 213; /* cream */
+  --surface: 255 251 243;
+  --surface-2: 246 234 210;
+  --border: 226 209 178;
+  --fg: 0 48 73; /* #003049 navy */
+  --muted: 60 96 120; /* muted navy */
 }
 
 * {
@@ -56,8 +57,8 @@ body {
   inset: 0;
   z-index: -1;
   background:
-    radial-gradient(60rem 40rem at 82% -12%, rgb(var(--accent-2) / 0.16), transparent 60%),
-    radial-gradient(48rem 34rem at -12% 112%, rgb(var(--accent) / 0.12), transparent 55%);
+    radial-gradient(60rem 40rem at 82% -12%, rgb(var(--accent) / 0.18), transparent 60%),
+    radial-gradient(48rem 34rem at -12% 112%, rgb(var(--accent-blue) / 0.18), transparent 55%);
   pointer-events: none;
 }
 
