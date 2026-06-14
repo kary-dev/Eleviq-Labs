@@ -258,6 +258,15 @@ export async function checkInstagramBio(socialAccountId: string): Promise<{ ok: 
   const profile = await instagram().getProfile(acct.handle);
   if (!profile) return { ok: false, message: "Couldn't load your profile. Try again." };
 
+  // Private accounts (or any account whose bio we can't read) can't be verified
+  // by bio code — give an accurate message instead of "code not found".
+  if (profile.isPrivate || !profile.biography.trim()) {
+    return {
+      ok: false,
+      message: `We couldn't read your bio. If your account is private, switch it to public (Settings → Account privacy), then make sure ${acct.verifyCode} is in your bio and re-check.`,
+    };
+  }
+
   if (!profile.biography.toUpperCase().includes(acct.verifyCode.toUpperCase())) {
     return { ok: false, message: `Code not found in your bio yet. Add ${acct.verifyCode} to your Instagram bio, save, then re-check.` };
   }
