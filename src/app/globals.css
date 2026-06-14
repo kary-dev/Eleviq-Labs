@@ -1,0 +1,95 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* ELEVIQ LABS — monochrome base + electric violet accent */
+  --accent: 124 92 255; /* electric violet */
+  --accent-fg: 255 255 255;
+}
+
+/* Dark theme (default) */
+.dark,
+:root {
+  --bg: 9 9 12;
+  --surface: 18 18 23;
+  --surface-2: 26 26 33;
+  --border: 39 39 48;
+  --fg: 244 244 248;
+  --muted: 150 150 165;
+}
+
+/* Light theme */
+.light {
+  --bg: 248 248 250;
+  --surface: 255 255 255;
+  --surface-2: 244 244 247;
+  --border: 226 226 232;
+  --fg: 18 18 22;
+  --muted: 110 110 124;
+}
+
+* {
+  border-color: rgb(var(--border));
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: rgb(var(--bg));
+  color: rgb(var(--fg));
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+/* Subtle ambient gradient backdrop */
+.app-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(60rem 40rem at 80% -10%, rgb(var(--accent) / 0.10), transparent 60%),
+    radial-gradient(50rem 35rem at -10% 110%, rgb(var(--accent) / 0.07), transparent 55%);
+  pointer-events: none;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgb(var(--border));
+  border-radius: 99px;
+}
+::-webkit-scrollbar-thumb:hover { background: rgb(var(--muted) / 0.5); }
+
+@layer components {
+  .card {
+    @apply rounded-2xl border border-border bg-surface/80 backdrop-blur-sm;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all duration-150 disabled:opacity-50 disabled:pointer-events-none;
+  }
+  .btn-accent {
+    @apply btn bg-accent text-accent-fg hover:brightness-110 active:brightness-95 shadow-glow;
+  }
+  .btn-ghost {
+    @apply btn border border-border bg-surface-2/60 text-fg hover:bg-surface-2;
+  }
+  .btn-soft {
+    @apply btn bg-surface-2 text-fg hover:bg-border/60;
+  }
+  .input {
+    @apply w-full rounded-xl border border-border bg-surface-2/60 px-3.5 py-2.5 text-sm text-fg placeholder:text-muted/70 outline-none focus:border-accent/70 focus:ring-2 focus:ring-accent/20 transition;
+  }
+  .label {
+    @apply block text-xs font-medium uppercase tracking-wider text-muted mb-1.5;
+  }
+  .pill {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium;
+  }
+  .stat-value {
+    @apply font-display text-3xl font-bold tracking-tight;
+  }
+}

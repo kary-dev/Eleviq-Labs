@@ -1,0 +1,226 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Auth.js (NextAuth) models
+// ---------------------------------------------------------------------------
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  role          Role      @default(CREATOR)
+
+  // Referral system
+  referralCode String  @unique @default(cuid())
+  referredById String?
+  referredBy   User?   @relation("Referrals", fields: [referredById], references: [id])
+  referrals    User[]  @relation("Referrals")
+
+  accounts         Account[]
+  sessions         Session[]
+  socialAccounts   SocialAccount[]
+  participations   Participation[]
+  submissions      Submission[]
+  demographicProofs DemographicProof[]
+  bankAccount      BankAccount?
+  payouts          Payout[]
+
+  createdAt DateTime @default(now())
+}
+
+enum Role {
+  CREATOR
+  ADMIN
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ---------------------------------------------------------------------------
+// Domain models
+// ---------------------------------------------------------------------------
+
+enum Platform {
+  INSTAGRAM
+  YOUTUBE
+  X
+  TIKTOK
+}
+
+// A creator's connected & verified social account
+model SocialAccount {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  platform  Platform
+  handle    String
+  url       String?
+  verified  Boolean  @default(false)
+  method    String?  // how it was verified: "link" | "bio"
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+enum CampaignStatus {
+  ACTIVE
+  ENDED
+  DRAFT
+}
+
+// A brand campaign creators can clip for
+model Campaign {
+  id            String         @id @default(cuid())
+  title         String
+  brand         String
+  description   String
+  thumbnail     String? // emoji or image url
+  status        CampaignStatus @default(ACTIVE)
+  ratePerThousand Float        @default(1.5) // payout per 1,000 views ($)
+  budget        Float          @default(1000)
+  totalBudgetUsed Float        @default(0)
+  minViews      Int            @default(0)
+  discordUrl    String?
+  platforms     String         @default("INSTAGRAM,YOUTUBE,X,TIKTOK") // CSV of allowed platforms
+  endsAt        DateTime?
+  createdAt     DateTime       @default(now())
+
+  participations    Participation[]
+  submissions       Submission[]
+  demographicProofs DemographicProof[]
+}
+
+// A creator joining a campaign
+model Participation {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, campaignId])
+}
+
+enum SubmissionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// A submitted clip/video
+model Submission {
+  id          String           @id @default(cuid())
+  userId      String
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  campaignId  String
+  campaign    Campaign         @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  platform    Platform
+  url         String
+  title       String?
+  views       Int              @default(0)
+  status      SubmissionStatus @default(PENDING)
+  payout      Float            @default(0) // $ earned once approved
+  rejectReason String?
+  reviewedAt  DateTime?
+  createdAt   DateTime         @default(now())
+
+  demographicProofs DemographicProof[]
+
+  @@index([status])
+  @@index([userId])
+}
+
+enum ProofStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// Proof of views / audience demographics for a submission
+model DemographicProof {
+  id           String      @id @default(cuid())
+  userId       String
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  campaignId   String
+  campaign     Campaign    @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  submissionId String?
+  submission   Submission? @relation(fields: [submissionId], references: [id], onDelete: SetNull)
+  imageUrl     String // screenshot/proof
+  note         String?
+  status       ProofStatus @default(PENDING)
+  createdAt    DateTime    @default(now())
+}
+
+// Creator's payout bank details
+model BankAccount {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountHolder String
+  accountNumber String
+  routingNumber String?
+  bankName      String?
+  country       String   @default("US")
+  paypalEmail   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+enum PayoutStatus {
+  PENDING
+  PAID
+}
+
+// A payout to a creator
+model Payout {
+  id        String       @id @default(cuid())
+  userId    String
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount    Float
+  status    PayoutStatus @default(PENDING)
+  note      String?
+  createdAt DateTime     @default(now())
+  paidAt    DateTime?
+}
