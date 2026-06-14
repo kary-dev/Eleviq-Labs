@@ -29,7 +29,7 @@ const config: Config = {
         "2xl": "1.25rem",
       },
       boxShadow: {
-        glow: "0 0 0 1px rgb(var(--accent) / 0.4), 0 8px 40px -12px rgb(var(--accent) / 0.45)",
+        glow: "0 0 0 1px rgb(var(--accent) / 0.45), 0 10px 44px -10px rgb(var(--accent-2) / 0.55)",
       },
     },
   },

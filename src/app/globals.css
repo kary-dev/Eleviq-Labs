@@ -3,30 +3,31 @@
 @tailwind utilities;
 
 :root {
-  /* ELEVIQ LABS — orange / black / white */
-  --accent: 255 107 0; /* #FF6B00 vivid orange */
-  --accent-fg: 20 20 20; /* near-black text on orange */
+  /* ELEVIQ LABS — dark orange on a warm black / white base */
+  --accent: 234 88 12; /* #EA580C rich dark orange */
+  --accent-2: 249 115 22; /* #F97316 brighter orange for gradients/glow */
+  --accent-fg: 255 255 255; /* white text on orange */
 }
 
-/* Dark theme (default) — black base */
+/* Dark theme (default) — warm near-black */
 .dark,
 :root {
-  --bg: 12 12 12;
-  --surface: 23 23 23;
-  --surface-2: 33 33 33;
-  --border: 46 46 46;
-  --fg: 245 245 245;
-  --muted: 161 161 161;
+  --bg: 13 11 10;
+  --surface: 24 21 19;
+  --surface-2: 33 29 26;
+  --border: 48 42 38;
+  --fg: 246 244 242;
+  --muted: 167 159 152;
 }
 
-/* Light theme — white base */
+/* Light theme — warm white */
 .light {
   --bg: 255 255 255;
   --surface: 255 255 255;
-  --surface-2: 245 245 245;
-  --border: 226 226 226;
-  --fg: 17 17 17;
-  --muted: 102 102 102;
+  --surface-2: 247 244 241;
+  --border: 230 225 220;
+  --fg: 23 19 16;
+  --muted: 109 102 96;
 }
 
 * {
@@ -44,14 +45,19 @@ body {
   font-family: Helvetica, "Helvetica Neue", Arial, system-ui, sans-serif;
 }
 
+/* Brand logo is white artwork — invert it on the light theme so it stays visible */
+.light .logo-img {
+  filter: invert(1);
+}
+
 /* Subtle ambient gradient backdrop */
 .app-backdrop {
   position: fixed;
   inset: 0;
   z-index: -1;
   background:
-    radial-gradient(60rem 40rem at 80% -10%, rgb(var(--accent) / 0.10), transparent 60%),
-    radial-gradient(50rem 35rem at -10% 110%, rgb(var(--accent) / 0.07), transparent 55%);
+    radial-gradient(60rem 40rem at 82% -12%, rgb(var(--accent-2) / 0.16), transparent 60%),
+    radial-gradient(48rem 34rem at -12% 112%, rgb(var(--accent) / 0.12), transparent 55%);
   pointer-events: none;
 }
 
