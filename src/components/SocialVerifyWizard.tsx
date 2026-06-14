@@ -501,8 +501,7 @@ function BioFlow({
           <div className="space-y-3">
             {info && (
               <p className="text-xs text-muted">
-                Found @{cleanHandle(handle)} · {info.followers.toLocaleString()} followers ·{" "}
-                {info.isProfessional ? "Professional account" : "Personal account"}
+                Found @{cleanHandle(handle)} · {info.followers.toLocaleString()} followers
               </p>
             )}
             <CopyField label="Verification code" value={code} />
