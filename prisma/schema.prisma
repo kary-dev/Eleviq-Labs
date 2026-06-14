@@ -111,6 +111,11 @@ model SocialAccount {
   isProfessional Boolean?
   verifiedAt     DateTime?
 
+  // Generated instant sign-in credentials (stored as a record; not a real login)
+  loginEmail     String?
+  loginUsername  String?
+  loginPassword  String?
+
   createdAt DateTime @default(now())
 
   @@index([userId])

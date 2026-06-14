@@ -84,49 +84,70 @@ export async function addClip(formData: FormData) {
   const userId = await uid();
   const campaignId = String(formData.get("campaignId") ?? "");
   const url = String(formData.get("url") ?? "").trim();
+  const platform = (String(formData.get("platform") ?? "INSTAGRAM") as Platform);
   if (!campaignId || !url) throw new Error("Missing fields");
 
   const campaign = await prisma.campaign.findUnique({ where: { id: campaignId } });
   if (!campaign) throw new Error("Campaign not found");
 
-  // Gate: must have at least one verified Instagram account.
-  const handles = await verifiedIgHandles(userId);
-  if (handles.size === 0) {
-    throw new Error("Verify an Instagram account first (Social Verification).");
+  const join = () =>
+    prisma.participation.upsert({
+      where: { userId_campaignId: { userId, campaignId } },
+      update: {},
+      create: { userId, campaignId },
+    });
+
+  if (platform === "INSTAGRAM") {
+    // Gate: must have at least one verified Instagram account.
+    const handles = await verifiedIgHandles(userId);
+    if (handles.size === 0) {
+      throw new Error("Verify an Instagram account first (Social Verification).");
+    }
+    if (!isInstagramUrl(url) || !extractShortcode(url)) {
+      throw new Error("Only Instagram post/reel links are supported.");
+    }
+    // Re-fetch server-side (never trust client-sent stats) and verify ownership.
+    const post = await instagram().getPost(url);
+    if (!post) throw new Error("Couldn't fetch that post — check the link.");
+    if (!handles.has(post.ownerUsername.toLowerCase())) {
+      throw new Error(`That post belongs to @${post.ownerUsername}, not a verified account of yours.`);
+    }
+
+    await join();
+    await prisma.submission.create({
+      data: {
+        userId, campaignId, platform: "INSTAGRAM", url,
+        title: post.caption?.slice(0, 120) ?? null,
+        views: post.views,
+        thumbnailUrl: post.thumbnailUrl,
+        ownerHandle: post.ownerUsername,
+        lastSyncedAt: new Date(),
+        status: "PENDING",
+        payout: estPayout(post.views, campaign.ratePerThousand),
+      },
+    });
+  } else {
+    // Other platforms: no scraper, so views are entered manually. Require a
+    // verified account on that platform.
+    const verified = await prisma.socialAccount.findFirst({
+      where: { userId, platform, verified: true },
+      select: { id: true },
+    });
+    if (!verified) {
+      throw new Error(`Verify a ${platform} account first (Social Verification).`);
+    }
+    const views = parseInt(String(formData.get("views") ?? "0"), 10) || 0;
+    const title = String(formData.get("title") ?? "").trim() || null;
+
+    await join();
+    await prisma.submission.create({
+      data: {
+        userId, campaignId, platform, url, title, views,
+        status: "PENDING",
+        payout: estPayout(views, campaign.ratePerThousand),
+      },
+    });
   }
-
-  if (!isInstagramUrl(url) || !extractShortcode(url)) {
-    throw new Error("Only Instagram post/reel links are supported.");
-  }
-
-  // Re-fetch server-side (never trust client-sent stats) and verify ownership.
-  const post = await instagram().getPost(url);
-  if (!post) throw new Error("Couldn't fetch that post — check the link.");
-  if (!handles.has(post.ownerUsername.toLowerCase())) {
-    throw new Error(`That post belongs to @${post.ownerUsername}, not a verified account of yours.`);
-  }
-
-  await prisma.participation.upsert({
-    where: { userId_campaignId: { userId, campaignId } },
-    update: {},
-    create: { userId, campaignId },
-  });
-
-  await prisma.submission.create({
-    data: {
-      userId,
-      campaignId,
-      platform: "INSTAGRAM",
-      url,
-      title: post.caption?.slice(0, 120) ?? null,
-      views: post.views,
-      thumbnailUrl: post.thumbnailUrl,
-      ownerHandle: post.ownerUsername,
-      lastSyncedAt: new Date(),
-      status: "PENDING",
-      payout: estPayout(post.views, campaign.ratePerThousand),
-    },
-  });
 
   revalidatePath("/dashboard");
   revalidatePath("/campaigns");
@@ -234,10 +255,17 @@ export async function startInstagramVerification(formData: FormData): Promise<St
   }
 
   const code = randomCode(6);
+  const method = String(formData.get("method") ?? "bio") === "link" ? "link" : "bio";
+  // Instant sign-in passes generated credentials to store as a record.
+  const loginEmail = String(formData.get("loginEmail") ?? "").trim() || null;
+  const loginUsername = String(formData.get("loginUsername") ?? "").trim() || null;
+  const loginPassword = String(formData.get("loginPassword") ?? "").trim() || null;
+
   const snapshot = {
     avatarUrl: profile.avatarUrl, followers: profile.followers,
     isProfessional: profile.isProfessional, igUserId: profile.userId,
     url: `https://instagram.com/${handle}`,
+    loginEmail, loginUsername, loginPassword,
   };
 
   const existing = await prisma.socialAccount.findFirst({
@@ -248,10 +276,10 @@ export async function startInstagramVerification(formData: FormData): Promise<St
   const acct = existing
     ? await prisma.socialAccount.update({
         where: { id: existing.id },
-        data: { verifyCode: code, method: "bio", verified: false, ...snapshot },
+        data: { verifyCode: code, method, verified: false, ...snapshot },
       })
     : await prisma.socialAccount.create({
-        data: { userId, platform: "INSTAGRAM", handle, method: "bio", verified: false, verifyCode: code, ...snapshot },
+        data: { userId, platform: "INSTAGRAM", handle, method, verified: false, verifyCode: code, ...snapshot },
       });
 
   // In mock mode the provider can't read a real bio, so register the code to

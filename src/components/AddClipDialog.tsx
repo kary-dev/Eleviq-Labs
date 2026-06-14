@@ -3,8 +3,9 @@
 import { useState, useTransition, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { addClip, fetchClipPreview, type ClipPreview } from "@/app/(creator)/actions";
+import { PLATFORMS, PlatformKey } from "@/lib/platforms";
 import { estPayout, compact, money } from "@/lib/format";
-import { PlusIcon, XIcon, UploadIcon, CheckIcon, EyeIcon, InstagramIcon } from "@/components/icons";
+import { PlusIcon, XIcon, UploadIcon, CheckIcon, EyeIcon } from "@/components/icons";
 
 type Campaign = {
   id: string;
@@ -21,14 +22,21 @@ export function AddClipDialog({
   campaign: Campaign;
   trigger?: "button" | "block";
 }) {
+  const allowed = campaign.platforms.split(",").filter(Boolean) as PlatformKey[];
+
   const [open, setOpen] = useState(false);
+  const [platform, setPlatform] = useState<PlatformKey>(allowed[0] ?? "INSTAGRAM");
   const [url, setUrl] = useState("");
+  const [title, setTitle] = useState("");
+  const [views, setViews] = useState(0);
   const [preview, setPreview] = useState<ClipPreview | null>(null);
   const [fetching, startFetch] = useTransition();
   const [pending, startSubmit] = useTransition();
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
   const [mounted, setMounted] = useState(false);
+
+  const isIG = platform === "INSTAGRAM";
 
   useEffect(() => setMounted(true), []);
   useEffect(() => {
@@ -41,12 +49,22 @@ export function AddClipDialog({
 
   const reset = () => {
     setUrl("");
+    setTitle("");
+    setViews(0);
     setPreview(null);
     setError("");
     setDone(false);
   };
 
+  const switchPlatform = (p: PlatformKey) => {
+    setPlatform(p);
+    setUrl("");
+    setPreview(null);
+    setError("");
+  };
+
   const doFetch = (value: string) => {
+    if (!isIG) return;
     const v = value.trim();
     if (!v || !/instagram\.com\//i.test(v)) {
       setPreview(null);
@@ -60,10 +78,17 @@ export function AddClipDialog({
   };
 
   const submit = () => {
-    if (!preview?.ok || !preview.ownedByYou) return;
     const fd = new FormData();
     fd.set("campaignId", campaign.id);
+    fd.set("platform", platform);
     fd.set("url", url.trim());
+    if (isIG) {
+      if (!preview?.ok || !preview.ownedByYou) return;
+    } else {
+      if (!url.trim() || views <= 0) return;
+      fd.set("title", title.trim());
+      fd.set("views", String(views));
+    }
     setError("");
     startSubmit(async () => {
       try {
@@ -79,19 +104,18 @@ export function AddClipDialog({
     });
   };
 
-  const canSubmit = !!preview?.ok && !!preview.ownedByYou && !pending;
+  const canSubmit = isIG
+    ? !!preview?.ok && !!preview.ownedByYou && !pending
+    : !!url.trim() && views > 0 && !pending;
+
+  const estViews = isIG ? preview?.views ?? 0 : views;
+  const PlatIcon = PLATFORMS[platform].Icon;
 
   return (
     <>
-      {trigger === "block" ? (
-        <button onClick={() => setOpen(true)} className="btn-accent w-full">
-          <PlusIcon className="h-4 w-4" /> Add Clip
-        </button>
-      ) : (
-        <button onClick={() => setOpen(true)} className="btn-accent">
-          <PlusIcon className="h-4 w-4" /> Add Clip
-        </button>
-      )}
+      <button onClick={() => setOpen(true)} className={trigger === "block" ? "btn-accent w-full" : "btn-accent"}>
+        <PlusIcon className="h-4 w-4" /> Add Clip
+      </button>
 
       {open && mounted && createPortal(
         <div className="fixed inset-0 z-50 grid place-items-center p-4">
@@ -115,34 +139,62 @@ export function AddClipDialog({
               </div>
             ) : (
               <div className="space-y-4">
+                {/* Platform picker */}
+                {allowed.length > 1 && (
+                  <div>
+                    <label className="label">Platform</label>
+                    <div className="flex flex-wrap gap-2">
+                      {allowed.map((p) => {
+                        const { Icon, label } = PLATFORMS[p];
+                        const active = p === platform;
+                        return (
+                          <button
+                            key={p}
+                            type="button"
+                            onClick={() => switchPlatform(p)}
+                            className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium transition ${
+                              active
+                                ? "border-accent/70 bg-accent/15 text-fg ring-2 ring-accent/20"
+                                : "border-border bg-surface-2/60 text-muted hover:text-fg"
+                            }`}
+                          >
+                            <Icon className="h-4 w-4" /> {label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 <div>
                   <label className="label flex items-center gap-1.5">
-                    <InstagramIcon className="h-3.5 w-3.5" /> Instagram post / reel link
+                    <PlatIcon className="h-3.5 w-3.5" /> {PLATFORMS[platform].label} {isIG ? "post / reel link" : "link"}
                   </label>
                   <input
                     value={url}
-                    onChange={(e) => { setUrl(e.target.value); setPreview(null); }}
+                    onChange={(e) => { setUrl(e.target.value); if (isIG) setPreview(null); }}
                     onBlur={(e) => doFetch(e.target.value)}
                     onPaste={(e) => setTimeout(() => doFetch((e.target as HTMLInputElement).value), 0)}
-                    placeholder="https://instagram.com/reel/…"
+                    placeholder={PLATFORMS[platform].placeholder}
                     className="input"
                   />
                   <p className="mt-1.5 text-xs text-muted">
-                    Paste the link — we fetch the views and details automatically.
+                    {isIG
+                      ? "Paste the link — we fetch the views and details automatically."
+                      : "Paste the link, then enter the current view count below."}
                   </p>
                 </div>
 
-                {fetching && (
+                {/* Instagram: auto-fetched preview */}
+                {isIG && fetching && (
                   <div className="rounded-xl border border-border bg-surface-2/50 px-4 py-3 text-sm text-muted">
                     Fetching post details…
                   </div>
                 )}
-
-                {!fetching && preview && !preview.ok && (
+                {isIG && !fetching && preview && !preview.ok && (
                   <p className="text-sm text-rose-400">{preview.message}</p>
                 )}
-
-                {!fetching && preview?.ok && (
+                {isIG && !fetching && preview?.ok && (
                   <div className="overflow-hidden rounded-xl border border-border bg-surface-2/50">
                     <div className="flex gap-3 p-3">
                       {preview.thumbnailUrl && (
@@ -174,11 +226,32 @@ export function AddClipDialog({
                   </div>
                 )}
 
-                {preview?.ok && preview.ownedByYou && (
+                {/* Non-Instagram: manual title + views */}
+                {!isIG && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="label">Title (optional)</label>
+                      <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Clip title" className="input" />
+                    </div>
+                    <div>
+                      <label className="label">Current views</label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={views || ""}
+                        onChange={(e) => setViews(parseInt(e.target.value) || 0)}
+                        placeholder="0"
+                        className="input"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {((isIG && preview?.ok && preview.ownedByYou) || (!isIG && views > 0)) && (
                   <div className="flex items-center justify-between rounded-xl border border-border bg-surface-2/50 px-4 py-3 text-sm">
-                    <span className="text-muted">Est. payout at {compact(preview.views ?? 0)} views</span>
+                    <span className="text-muted">Est. payout at {compact(estViews)} views</span>
                     <span className="font-display text-lg font-bold text-accent">
-                      {money(estPayout(preview.views ?? 0, campaign.ratePerThousand))}
+                      {money(estPayout(estViews, campaign.ratePerThousand))}
                     </span>
                   </div>
                 )}

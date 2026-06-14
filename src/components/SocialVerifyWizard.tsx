@@ -30,8 +30,16 @@ const rand = (n: number) => {
   const c = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
   return Array.from({ length: n }, () => c[Math.floor(Math.random() * c.length)]).join("");
 };
-const otp = () => String(Math.floor(100000 + Math.random() * 900000));
 const cleanHandle = (h: string) => h.trim().replace(/^@+/, "");
+
+// Human-friendly generated password, e.g. "SolarPrime48?" (stored as a record).
+const genPassword = () => {
+  const a = ["Solar", "Lunar", "Nova", "Pixel", "Echo", "Vivid", "Prime", "Hyper", "Neon", "Aero", "Volt", "Zephyr"];
+  const b = ["Prime", "Wave", "Pulse", "Flux", "Spark", "Drift", "Core", "Shift", "Bloom", "Crest"];
+  const sym = "!?#$%&";
+  const pick = <T,>(arr: T[]) => arr[Math.floor(Math.random() * arr.length)];
+  return `${pick(a)}${pick(b)}${Math.floor(10 + Math.random() * 90)}${pick(sym.split(""))}`;
+};
 
 /* =====================================================================
    Top-level: shows the platform grid, or the wizard for one platform.
@@ -165,6 +173,7 @@ function VerifyFlow({ platform, onExit }: { platform: PlatformKey; onExit: () =>
               pending={pending}
               onBack={() => setStage("method")}
               onFinish={finish}
+              onVerified={(h) => { setDoneHandle(h); setStage("done"); }}
             />
           )}
 
@@ -284,130 +293,117 @@ function MethodCard({
 /* ---------------- step 2a: instant sign-in ---------------- */
 
 function LinkFlow({
-  platform, pending, onBack, onFinish,
+  platform, pending, onBack, onFinish, onVerified,
 }: {
   platform: PlatformKey; pending: boolean;
-  onBack: () => void; onFinish: (handle: string) => void;
+  onBack: () => void; onFinish: (handle: string) => void; onVerified: (handle: string) => void;
 }) {
-  const [email, setEmail] = useState("");
-  const [emailOk, setEmailOk] = useState(false);
+  const isInstagram = platform === "INSTAGRAM";
+
   const [handle, setHandle] = useState("");
-  const [handleOk, setHandleOk] = useState(false);
+  const [creds, setCreds] = useState<{ email: string; username: string; password: string } | null>(null);
+  const [accountId, setAccountId] = useState<string | null>(null);
   const [code, setCode] = useState("");
+  const [started, setStarted] = useState(false);
+  const [busy, start] = useTransition();
   const [error, setError] = useState("");
 
-  const creds = useMemo(() => {
-    if (!handleOk) return null;
-    const h = cleanHandle(handle).toLowerCase();
-    return {
-      login: `${h}.${platform.toLowerCase()}@creators.eleviqlabs.com`,
-      password: `${rand(4)}-${rand(4)}-${rand(4)}`.toLowerCase(),
-    };
-  }, [handleOk, handle, platform]);
+  const working = pending || busy;
 
-  const expectedOtp = useMemo(() => (creds ? otp() : ""), [creds]);
+  const make = () => {
+    setError("");
+    const u = cleanHandle(handle).toLowerCase();
+    if (!u) return;
+    const generated = { username: u, email: `${u}@creators.eleviqlabs.com`, password: genPassword() };
+    if (!isInstagram) {
+      setCreds(generated);
+      setCode(rand(6));
+      setStarted(true);
+      return;
+    }
+    const fd = new FormData();
+    fd.set("handle", u);
+    fd.set("method", "link");
+    fd.set("loginEmail", generated.email);
+    fd.set("loginUsername", generated.username);
+    fd.set("loginPassword", generated.password);
+    start(async () => {
+      const r = await startInstagramVerification(fd);
+      if (!r.ok) { setError(r.message); return; }
+      setCreds(generated);
+      setAccountId(r.accountId);
+      setCode(r.code);
+      setStarted(true);
+    });
+  };
 
-  const validEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  const check = () => {
+    setError("");
+    if (!isInstagram) { onFinish(handle); return; }
+    if (!accountId) return;
+    start(async () => {
+      const r = await checkInstagramBio(accountId);
+      if (!r.ok) { setError(r.message); return; }
+      onVerified(cleanHandle(handle));
+    });
+  };
 
   return (
     <div className="space-y-3">
-      <Step n={1} done={emailOk} title="Add your email" desc="Where we'll send account and payout updates.">
-        {!emailOk ? (
+      <Step n={1} done={started} title="Your handle" desc={`Your ${PLATFORMS[platform].label} username — we build a login from it.`}>
+        {!started ? (
           <div className="space-y-2">
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              className="input"
-            />
-            <button
-              disabled={!validEmail}
-              onClick={() => setEmailOk(true)}
-              className="btn-accent w-full sm:w-auto"
-            >
-              Continue
-            </button>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <input
+                value={handle}
+                onChange={(e) => setHandle(e.target.value)}
+                placeholder="@yourhandle"
+                className="input"
+              />
+              <button disabled={!cleanHandle(handle) || working} onClick={make} className="btn-accent shrink-0">
+                {working ? "Creating…" : "Create my login"}
+              </button>
+            </div>
+            {error && <p className="text-sm text-rose-400">{error}</p>}
           </div>
         ) : (
-          <LockedValue value={email} onEdit={() => { setEmailOk(false); setHandleOk(false); }} />
+          <LockedValue
+            value={"@" + cleanHandle(handle)}
+            onEdit={() => { setStarted(false); setAccountId(null); setCreds(null); setError(""); }}
+          />
         )}
       </Step>
 
-      <Step
-        n={2}
-        done={handleOk}
-        locked={!emailOk}
-        title="Add your handle"
-        desc={`Your ${PLATFORMS[platform].label} username — we build your login from it.`}
-      >
-        {!handleOk ? (
-          <div className="space-y-2">
-            <input
-              value={handle}
-              onChange={(e) => setHandle(e.target.value)}
-              placeholder="@yourhandle"
-              className="input"
-            />
-            <button
-              disabled={!cleanHandle(handle)}
-              onClick={() => setHandleOk(true)}
-              className="btn-accent w-full sm:w-auto"
-            >
-              Generate credentials
-            </button>
-          </div>
-        ) : (
-          <LockedValue value={"@" + cleanHandle(handle)} onEdit={() => setHandleOk(false)} />
-        )}
-      </Step>
-
-      <Step
-        n={3}
-        done={!!creds}
-        locked={!handleOk}
-        title="Review your credentials"
-        desc="Save these — you'll use them to sign in to Eleviq Labs."
-      >
-        {creds && (
+      <Step n={2} locked={!started} title="Review your credentials" desc="Saved to your account — keep them somewhere safe.">
+        {started && creds && (
           <div className="space-y-3">
-            <CopyField label="Sign-in email" value={creds.login} />
+            <CopyField label="Email" value={creds.email} />
+            <CopyField label="Username" value={creds.username} />
             <CopyField label="Password" value={creds.password} />
           </div>
         )}
       </Step>
 
-      <Step
-        n={4}
-        locked={!creds}
-        title="Confirm with a one-time code"
-        desc="Enter the code to finish verifying."
-      >
-        {creds && (
+      <Step n={3} locked={!started} title="Add the code to your bio" desc="Paste it anywhere in your profile bio, then save.">
+        {started && (
+          <div className="space-y-3">
+            <CopyField label="Verification code" value={code} />
+            <ol className="space-y-1.5 text-sm text-muted">
+              <li>1. Open your {PLATFORMS[platform].label} profile and edit your bio.</li>
+              <li>2. Paste the code above and save your changes.</li>
+              <li>3. Come back and verify — you can remove it afterwards.</li>
+            </ol>
+          </div>
+        )}
+      </Step>
+
+      <Step n={4} locked={!started} title="Verify" desc="We'll scan your profile for the code.">
+        {started && (
           <div className="space-y-2">
-            <div className="rounded-xl border border-accent/30 bg-accent/[0.07] px-3.5 py-2.5 text-sm">
-              <span className="text-muted">Demo mode — your code is </span>
-              <span className="font-mono font-semibold tracking-widest text-accent">{expectedOtp}</span>
-            </div>
-            <input
-              value={code}
-              onChange={(e) => { setCode(e.target.value); setError(""); }}
-              inputMode="numeric"
-              maxLength={6}
-              placeholder="000000"
-              className="input font-mono tracking-[0.4em]"
-            />
-            {error && <p className="text-sm text-rose-400">{error}</p>}
-            <button
-              disabled={pending}
-              onClick={() => {
-                if (code.trim() !== expectedOtp) { setError("That code doesn't match. Try again."); return; }
-                onFinish(handle);
-              }}
-              className="btn-accent w-full"
-            >
-              {pending ? "Verifying…" : "Verify & finish"}
+            <button disabled={working} onClick={check} className="btn-accent w-full">
+              {working ? "Checking your bio…" : "I've added it — verify now"}
             </button>
+            {error && <p className="text-sm text-rose-400">{error}</p>}
           </div>
         )}
       </Step>
