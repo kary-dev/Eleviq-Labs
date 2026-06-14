@@ -235,15 +235,6 @@ class ApifyInstagram implements InstagramProvider {
     const items = await this.run(this.profileActor, { usernames: [u] });
     const d = items?.[0];
     if (!d || !(d.username || d.id)) return null;
-    // Temporary diagnostic for account-type detection (shows in server logs).
-    console.log("[IG getProfile]", u, JSON.stringify({
-      isBusinessAccount: d.isBusinessAccount,
-      businessCategoryName: d.businessCategoryName,
-      isProfessionalAccount: d.isProfessionalAccount,
-      category: d.category,
-      private: d.private,
-      keys: Object.keys(d),
-    }));
     return {
       username: (d.username ?? u).toLowerCase(),
       fullName: d.fullName ?? d.full_name ?? null,
