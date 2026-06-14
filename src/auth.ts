@@ -58,6 +58,21 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const dbUser = await prisma.user.findUnique({ where: { id: token.id as string } });
         if (dbUser) token.role = dbUser.role;
       }
+      // Promote configured emails to ADMIN. Set ADMIN_EMAILS to a comma-separated
+      // list (e.g. "you@gmail.com,team@eleviqlabs.com"). Matches the signed-in email.
+      const adminEmails = (process.env.ADMIN_EMAILS ?? "")
+        .split(",")
+        .map((e) => e.trim().toLowerCase())
+        .filter(Boolean);
+      const email = String(token.email ?? "").toLowerCase();
+      if (email && adminEmails.includes(email) && token.role !== "ADMIN") {
+        token.role = "ADMIN";
+        if (token.id) {
+          await prisma.user
+            .update({ where: { id: token.id as string }, data: { role: "ADMIN" } })
+            .catch(() => {});
+        }
+      }
       return token;
     },
     // `session` callback is inherited from authConfig (edge-safe, shared with middleware)

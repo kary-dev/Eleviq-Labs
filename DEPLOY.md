@@ -48,6 +48,7 @@ Project → **Settings → Environment Variables** (Production + Preview):
 | `AUTH_TRUST_HOST` | `true` |
 | `AUTH_DISCORD_ID` | your Discord client ID |
 | `AUTH_DISCORD_SECRET` | your Discord client secret |
+| `ADMIN_EMAILS` | your Discord email (comma-separated for multiple) — these become admins on sign-in |
 | `ENABLE_DEV_LOGIN` | `false` |
 
 > `AUTH_URL` is **not** required — `trustHost` lets NextAuth auto-detect the
