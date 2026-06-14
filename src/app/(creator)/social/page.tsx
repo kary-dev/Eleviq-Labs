@@ -9,8 +9,10 @@ export const maxDuration = 60;
 
 export default async function SocialPage() {
   const user = await requireUser();
+  // Only show fully-verified accounts. Rows created mid-verification
+  // (verified: false, awaiting the bio-code check) must not look "connected".
   const accounts = await prisma.socialAccount.findMany({
-    where: { userId: user.id },
+    where: { userId: user.id, verified: true },
     orderBy: { createdAt: "desc" },
   });
 
