@@ -1,7 +1,9 @@
 import NextAuth from "next-auth";
 import Discord from "next-auth/providers/discord";
+import Credentials from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@/lib/prisma";
+import { verifyPassword } from "@/lib/password";
 import { authConfig } from "@/auth.config";
 
 const providers = [];
@@ -15,6 +17,24 @@ if (process.env.AUTH_DISCORD_ID && process.env.AUTH_DISCORD_SECRET) {
     })
   );
 }
+
+// Email + password — for accounts created via Instagram instant sign-up.
+providers.push(
+  Credentials({
+    id: "credentials",
+    name: "Email & Password",
+    credentials: { email: { label: "Email", type: "email" }, password: { label: "Password", type: "password" } },
+    async authorize(creds) {
+      const email = String(creds?.email ?? "").toLowerCase().trim();
+      const password = String(creds?.password ?? "");
+      if (!email || !password) return null;
+      const user = await prisma.user.findUnique({ where: { email } });
+      if (!user?.passwordHash) return null;
+      if (!verifyPassword(password, user.passwordHash)) return null;
+      return { id: user.id, name: user.name, email: user.email, image: user.image, role: user.role };
+    },
+  })
+);
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,

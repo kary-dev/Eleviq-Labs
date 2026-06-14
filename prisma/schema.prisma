@@ -19,6 +19,10 @@ model User {
   image         String?
   role          Role      @default(CREATOR)
 
+  // Credentials login (generated during Instagram instant sign-up)
+  username     String? @unique // the creator's Instagram handle
+  passwordHash String? // scrypt salt:hash for email+password sign-in
+
   // Referral system — code is null until the creator generates one
   referralCode String? @unique
   referredById String?

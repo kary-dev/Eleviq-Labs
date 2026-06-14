@@ -191,12 +191,30 @@ class RapidApiInstagram implements InstagramProvider {
 
 // --- Factory ---------------------------------------------------------------
 
+/**
+ * Provider that refuses to answer — used in production when no real key is set,
+ * so we never fake-verify accounts on a live site.
+ */
+class UnconfiguredInstagram implements InstagramProvider {
+  readonly mode = "live" as const;
+  async getProfile() { return null; }
+  async getPost() { return null; }
+}
+
 let cached: InstagramProvider | null = null;
 
 export function instagram(): InstagramProvider {
   if (cached) return cached;
   const key = process.env.RAPIDAPI_KEY;
   const host = process.env.RAPIDAPI_INSTAGRAM_HOST || "instagram-scraper-api2.p.rapidapi.com";
-  cached = key ? new RapidApiInstagram(key, host) : new MockInstagram();
+
+  if (key) {
+    cached = new RapidApiInstagram(key, host);
+  } else if (process.env.NODE_ENV === "production" && process.env.ALLOW_MOCK_INSTAGRAM !== "true") {
+    // No real key in production and mock not explicitly allowed → don't fake-verify.
+    cached = new UnconfiguredInstagram();
+  } else {
+    cached = new MockInstagram();
+  }
   return cached;
 }
