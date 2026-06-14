@@ -53,8 +53,16 @@ export function normalizeHandle(input: string): string {
 }
 
 export function extractShortcode(url: string): string | null {
-  const m = url.match(/instagram\.com\/(?:reel|reels|p|tv)\/([A-Za-z0-9_-]+)/i);
+  const m = url.match(/instagram\.com\/(?:[^/]+\/)?(?:reel|reels|p|tv)\/([A-Za-z0-9_-]+)/i);
   return m ? m[1] : null;
+}
+
+/** Some IG share links include the owner: instagram.com/<user>/reel/CODE */
+export function extractOwnerFromUrl(url: string): string | null {
+  const m = url.match(/instagram\.com\/([^/]+)\/(?:reel|reels|p|tv)\//i);
+  const u = m?.[1]?.toLowerCase();
+  if (!u || ["reel", "reels", "p", "tv"].includes(u)) return null;
+  return u;
 }
 
 // --- Mock provider ---------------------------------------------------------
@@ -97,8 +105,9 @@ class MockInstagram implements InstagramProvider {
     const code = extractShortcode(url);
     if (!code) return null;
     const h = seeded(code);
-    // Owner is registered so ownership checks can pass in mock mode.
-    const owner = MOCK_POST_OWNER.get(code) ?? "democreator";
+    // Owner resolution for mock: explicit register > username in the URL >
+    // default. Paste instagram.com/<yourhandle>/reel/CODE to test the happy path.
+    const owner = MOCK_POST_OWNER.get(code) ?? extractOwnerFromUrl(url) ?? "democreator";
     return {
       url,
       shortcode: code,
