@@ -38,16 +38,10 @@ npm run db:seed      # load demo campaigns, a creator and an admin
 npm run dev          # http://localhost:3000
 ```
 
-### Try it without Discord (dev login)
-With `ENABLE_DEV_LOGIN="true"` (the default in `.env`), the sign-in screen has a
-**"Continue without Discord (dev)"** option with one-click logins:
-
-| Role    | Email                     |
-| ------- | ------------------------- |
-| Creator | `creator@eleviqlabs.com`  |
-| Admin   | `admin@eleviqlabs.com`    |
-
-> Turn this off in production by setting `ENABLE_DEV_LOGIN="false"`.
+### Admin access
+Sign in with Discord. Any account whose email is `eleviqlabs@gmail.com` (or is
+listed in the `ADMIN_EMAILS` env var, comma-separated) is promoted to **ADMIN**
+on sign-in and can reach `/admin`.
 
 ---
 

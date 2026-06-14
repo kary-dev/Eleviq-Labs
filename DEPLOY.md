@@ -48,8 +48,7 @@ Project → **Settings → Environment Variables** (Production + Preview):
 | `AUTH_TRUST_HOST` | `true` |
 | `AUTH_DISCORD_ID` | your Discord client ID |
 | `AUTH_DISCORD_SECRET` | your Discord client secret |
-| `ADMIN_EMAILS` | your Discord email (comma-separated for multiple) — these become admins on sign-in |
-| `ENABLE_DEV_LOGIN` | `false` |
+| `ADMIN_EMAILS` | _(optional)_ extra admin emails, comma-separated. `eleviqlabs@gmail.com` is always an admin. |
 
 > `AUTH_URL` is **not** required — `trustHost` lets NextAuth auto-detect the
 > Vercel domain.
@@ -77,4 +76,3 @@ https://YOUR-APP.vercel.app/api/auth/callback/discord
 
 - [ ] Generated a fresh `AUTH_SECRET` (the repo default is a dev placeholder).
 - [ ] **Rotate the Discord client secret** — the dev value was stored in plaintext.
-- [ ] `ENABLE_DEV_LOGIN=false` in production (dev login bypasses Discord).

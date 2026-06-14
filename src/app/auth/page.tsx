@@ -4,7 +4,6 @@ import { MegaphoneIcon, WalletIcon } from "@/components/icons";
 
 export default function AuthPage() {
   const discordEnabled = !!(process.env.AUTH_DISCORD_ID && process.env.AUTH_DISCORD_SECRET);
-  const devEnabled = process.env.ENABLE_DEV_LOGIN === "true";
 
   return (
     <main className="relative min-h-screen">
@@ -15,7 +14,7 @@ export default function AuthPage() {
       <div className="mx-auto grid min-h-screen max-w-6xl items-center gap-10 px-6 py-16 lg:grid-cols-2">
         {/* Left — auth card */}
         <div className="flex justify-center lg:justify-start">
-          <AuthCard discordEnabled={discordEnabled} devEnabled={devEnabled} />
+          <AuthCard discordEnabled={discordEnabled} />
         </div>
 
         {/* Right — marketing */}

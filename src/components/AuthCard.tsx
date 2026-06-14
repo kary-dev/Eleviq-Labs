@@ -6,23 +6,15 @@ import { DiscordIcon } from "@/components/icons";
 
 export function AuthCard({
   discordEnabled,
-  devEnabled,
 }: {
   discordEnabled: boolean;
-  devEnabled: boolean;
 }) {
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [loading, setLoading] = useState<string | null>(null);
-  const [showDev, setShowDev] = useState(false);
 
   const discord = async () => {
     setLoading("discord");
     await signIn("discord", { redirectTo: "/dashboard" });
-  };
-
-  const devLogin = async (email: string) => {
-    setLoading(email);
-    await signIn("dev", { email, redirectTo: "/dashboard" });
   };
 
   return (
@@ -63,28 +55,6 @@ export function AuthCard({
           {mode === "signin" ? "Sign Up" : "Already have an account? Sign In"}
         </button>
       </div>
-
-      {devEnabled && (
-        <div className="mt-6 border-t border-border pt-5">
-          {!showDev ? (
-            <button onClick={() => setShowDev(true)} className="w-full text-center text-xs text-muted hover:text-fg">
-              Continue without Discord (dev) →
-            </button>
-          ) : (
-            <div className="space-y-2">
-              <p className="label mb-2">Dev quick login</p>
-              <button onClick={() => devLogin("creator@eleviqlabs.com")} disabled={!!loading} className="btn-soft w-full justify-between">
-                <span>👤 Demo Creator</span>
-                <span className="text-xs text-muted">creator@eleviqlabs.com</span>
-              </button>
-              <button onClick={() => devLogin("admin@eleviqlabs.com")} disabled={!!loading} className="btn-soft w-full justify-between">
-                <span>🛠️ Admin</span>
-                <span className="text-xs text-muted">admin@eleviqlabs.com</span>
-              </button>
-            </div>
-          )}
-        </div>
-      )}
 
       <p className="mt-6 text-center text-xs text-muted">
         By continuing you agree to our{" "}
