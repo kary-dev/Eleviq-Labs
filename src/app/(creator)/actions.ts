@@ -166,6 +166,16 @@ export async function verifyAccount(formData: FormData) {
   const method = String(formData.get("method") ?? "").trim() || null;
   if (!platform || !handle) throw new Error("Missing fields");
 
+  // Don't add an already-verified account again (idempotent).
+  const existing = await prisma.socialAccount.findFirst({
+    where: { userId, platform, handle, verified: true },
+    select: { id: true },
+  });
+  if (existing) {
+    revalidatePath("/social");
+    return;
+  }
+
   await prisma.socialAccount.create({
     data: { userId, platform, handle, url, verified: true, method },
   });
@@ -208,12 +218,20 @@ export async function startInstagramVerification(formData: FormData): Promise<St
     };
   }
 
-  // Don't let two creators claim the same handle.
+  // Block any handle that's already verified — by you or by someone else.
   const taken = await prisma.socialAccount.findFirst({
-    where: { platform: "INSTAGRAM", handle, verified: true, NOT: { userId } },
-    select: { id: true },
+    where: { platform: "INSTAGRAM", handle, verified: true },
+    select: { id: true, userId: true },
   });
-  if (taken) return { ok: false, message: "That account is already verified by another creator." };
+  if (taken) {
+    return {
+      ok: false,
+      message:
+        taken.userId === userId
+          ? "You've already verified this Instagram account."
+          : "That account is already verified by another creator.",
+    };
+  }
 
   const code = randomCode(6);
   const snapshot = {
