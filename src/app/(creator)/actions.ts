@@ -198,7 +198,9 @@ export async function startInstagramVerification(formData: FormData): Promise<St
   const profile = await instagram().getProfile(handle);
   if (!profile) return { ok: false, message: "We couldn't find that Instagram account." };
   if (profile.isPrivate) return { ok: false, message: "Your account is private — make it public to verify." };
-  if (!profile.isProfessional) {
+  // Scraped data can't reliably tell Creator/Business from Personal, so the
+  // professional requirement is OFF unless REQUIRE_PROFESSIONAL_IG=true.
+  if (process.env.REQUIRE_PROFESSIONAL_IG === "true" && !profile.isProfessional) {
     return {
       ok: false,
       message:
