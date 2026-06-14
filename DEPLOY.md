@@ -9,9 +9,10 @@ run on Vercel's serverless filesystem.
 ## 1. Create the database (Neon)
 
 1. Go to <https://neon.tech> and create a free project.
-2. Copy the **connection string** (the pooled one, ending in `?sslmode=require`).
-   It looks like:
-   `postgresql://user:password@ep-xxx-pooler.region.aws.neon.tech/neondb?sslmode=require`
+2. Copy the **direct** connection string (the one **without** `-pooler`, ending
+   in `?sslmode=require`). The direct URL lets `prisma db push` run during the
+   Vercel build. It looks like:
+   `postgresql://user:password@ep-xxx.region.aws.neon.tech/neondb?sslmode=require`
 3. Keep it handy — it becomes `DATABASE_URL`.
 
 ## 2. Push the code to GitHub
