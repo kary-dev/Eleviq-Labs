@@ -1,7 +1,10 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { verifyAccount, removeSocial } from "@/app/(creator)/actions";
+import {
+  verifyAccount, removeSocial,
+  startInstagramVerification, checkInstagramBio,
+} from "@/app/(creator)/actions";
 import { PLATFORMS, PLATFORM_KEYS, PlatformKey } from "@/lib/platforms";
 import { CopyField } from "@/components/CopyField";
 import {
@@ -171,6 +174,7 @@ function VerifyFlow({ platform, onExit }: { platform: PlatformKey; onExit: () =>
               pending={pending}
               onBack={() => setStage("method")}
               onFinish={finish}
+              onVerified={(h) => { setDoneHandle(h); setStage("done"); }}
             />
           )}
 
@@ -416,42 +420,91 @@ function LinkFlow({
 /* ---------------- step 2b: bio code ---------------- */
 
 function BioFlow({
-  platform, pending, onBack, onFinish,
+  platform, pending, onBack, onFinish, onVerified,
 }: {
   platform: PlatformKey; pending: boolean;
-  onBack: () => void; onFinish: (handle: string) => void;
+  onBack: () => void; onFinish: (handle: string) => void; onVerified: (handle: string) => void;
 }) {
+  const isInstagram = platform === "INSTAGRAM";
+
   const [handle, setHandle] = useState("");
   const [started, setStarted] = useState(false);
-  const code = useMemo(() => (started ? "ELQ-" + rand(6) : ""), [started]);
+
+  // Real Instagram flow state
+  const [accountId, setAccountId] = useState<string | null>(null);
+  const [realCode, setRealCode] = useState("");
+  const [busy, start] = useTransition();
+  const [error, setError] = useState("");
+  const [info, setInfo] = useState<{ followers: number; isProfessional: boolean } | null>(null);
+
+  // Simulated (non-IG) code
+  const simCode = useMemo(() => (started && !isInstagram ? rand(6) : ""), [started, isInstagram]);
+  const code = isInstagram ? realCode : simCode;
+
+  const getCode = () => {
+    setError("");
+    if (!isInstagram) { setStarted(true); return; }
+    const fd = new FormData();
+    fd.set("handle", cleanHandle(handle));
+    start(async () => {
+      const r = await startInstagramVerification(fd);
+      if (!r.ok) { setError(r.message); return; }
+      setAccountId(r.accountId);
+      setRealCode(r.code);
+      setInfo({ followers: r.followers, isProfessional: r.isProfessional });
+      setStarted(true);
+    });
+  };
+
+  const check = () => {
+    setError("");
+    if (!isInstagram) { onFinish(handle); return; }
+    if (!accountId) return;
+    start(async () => {
+      const r = await checkInstagramBio(accountId);
+      if (!r.ok) { setError(r.message); return; }
+      onVerified(cleanHandle(handle));
+    });
+  };
+
+  const working = pending || busy;
 
   return (
     <div className="space-y-3">
       <Step n={1} done={started} title="Tell us the handle" desc={`The ${PLATFORMS[platform].label} account you want to verify.`}>
         {!started ? (
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <input
-              value={handle}
-              onChange={(e) => setHandle(e.target.value)}
-              placeholder="@yourhandle"
-              className="input"
-            />
-            <button
-              disabled={!cleanHandle(handle)}
-              onClick={() => setStarted(true)}
-              className="btn-accent shrink-0"
-            >
-              Get my code
-            </button>
+          <div className="space-y-2">
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <input
+                value={handle}
+                onChange={(e) => setHandle(e.target.value)}
+                placeholder="@yourhandle"
+                className="input"
+              />
+              <button
+                disabled={!cleanHandle(handle) || working}
+                onClick={getCode}
+                className="btn-accent shrink-0"
+              >
+                {working ? "Checking…" : "Get my code"}
+              </button>
+            </div>
+            {error && <p className="text-sm text-rose-400">{error}</p>}
           </div>
         ) : (
-          <LockedValue value={"@" + cleanHandle(handle)} onEdit={() => setStarted(false)} />
+          <LockedValue value={"@" + cleanHandle(handle)} onEdit={() => { setStarted(false); setAccountId(null); setError(""); }} />
         )}
       </Step>
 
       <Step n={2} locked={!started} title="Add the code to your bio" desc="Paste it anywhere in your profile bio, then save.">
         {started && (
           <div className="space-y-3">
+            {info && (
+              <p className="text-xs text-muted">
+                Found @{cleanHandle(handle)} · {info.followers.toLocaleString()} followers ·{" "}
+                {info.isProfessional ? "Professional account" : "Personal account"}
+              </p>
+            )}
             <CopyField label="Verification code" value={code} />
             <ol className="space-y-1.5 text-sm text-muted">
               <li>1. Open your {PLATFORMS[platform].label} profile and edit your bio.</li>
@@ -464,9 +517,12 @@ function BioFlow({
 
       <Step n={3} locked={!started} title="Check my bio" desc="We'll scan your profile for the code.">
         {started && (
-          <button disabled={pending} onClick={() => onFinish(handle)} className="btn-accent w-full">
-            {pending ? "Checking your bio…" : "I've added it — verify now"}
-          </button>
+          <div className="space-y-2">
+            <button disabled={working} onClick={check} className="btn-accent w-full">
+              {working ? "Checking your bio…" : "I've added it — verify now"}
+            </button>
+            {error && <p className="text-sm text-rose-400">{error}</p>}
+          </div>
         )}
       </Step>
 

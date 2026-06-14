@@ -98,6 +98,15 @@ model SocialAccount {
   url       String?
   verified  Boolean  @default(false)
   method    String?  // how it was verified: "link" | "bio"
+
+  // Pending verification + fetched profile snapshot (Instagram)
+  verifyCode     String?   // 6-char code the creator must place in their bio
+  igUserId       String?   // instagram numeric id, used to match clips
+  avatarUrl      String?
+  followers      Int?
+  isProfessional Boolean?
+  verifiedAt     DateTime?
+
   createdAt DateTime @default(now())
 
   @@index([userId])
@@ -164,6 +173,12 @@ model Submission {
   payout      Float            @default(0) // $ earned once approved
   rejectReason String?
   reviewedAt  DateTime?
+
+  // Fetched from the post URL at submission time + on refresh
+  thumbnailUrl String?
+  ownerHandle  String?  // instagram handle the post belongs to
+  lastSyncedAt DateTime?
+
   createdAt   DateTime         @default(now())
 
   demographicProofs DemographicProof[]
