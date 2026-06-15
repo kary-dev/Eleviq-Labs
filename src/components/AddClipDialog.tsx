@@ -3,7 +3,7 @@
 import { useState, useTransition, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { addClip, fetchClipPreview, type ClipPreview } from "@/app/(creator)/actions";
-import { PLATFORMS, PlatformKey } from "@/lib/platforms";
+import { PLATFORMS, PLATFORM_KEYS, PlatformKey } from "@/lib/platforms";
 import { estPayout, compact, money } from "@/lib/format";
 import { PlusIcon, XIcon, UploadIcon, CheckIcon } from "@/components/icons";
 
@@ -22,7 +22,10 @@ export function AddClipDialog({
   campaign: Campaign;
   trigger?: "button" | "block";
 }) {
-  const allowed = campaign.platforms.split(",").filter(Boolean) as PlatformKey[];
+  // Fixed display order: Instagram, YouTube, X, TikTok (PLATFORM_KEYS order).
+  const allowed = (campaign.platforms.split(",").filter(Boolean) as PlatformKey[])
+    .slice()
+    .sort((a, b) => PLATFORM_KEYS.indexOf(a) - PLATFORM_KEYS.indexOf(b));
 
   const [open, setOpen] = useState(false);
   const [platform, setPlatform] = useState<PlatformKey>(allowed[0] ?? "INSTAGRAM");
