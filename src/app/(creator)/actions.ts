@@ -87,6 +87,25 @@ export async function addClip(formData: FormData) {
   const campaign = await prisma.campaign.findUnique({ where: { id: campaignId } });
   if (!campaign) throw new Error("Campaign not found");
 
+  // Block re-submitting the same clip while it's still pending or approved.
+  // A rejected clip can be re-added (it won't match below).
+  const dupKey = platform === "INSTAGRAM" ? extractShortcode(url) : url.trim().toLowerCase();
+  if (dupKey) {
+    const active = await prisma.submission.findMany({
+      where: { userId, status: { in: ["PENDING", "APPROVED"] } },
+      select: { url: true, platform: true },
+    });
+    const clash = active.some((s) => {
+      const k = s.platform === "INSTAGRAM" ? extractShortcode(s.url) : s.url.trim().toLowerCase();
+      return !!k && k === dupKey;
+    });
+    if (clash) {
+      throw new Error(
+        "You've already submitted this clip — it's pending or approved. You can re-add it only if it was rejected."
+      );
+    }
+  }
+
   const join = () =>
     prisma.participation.upsert({
       where: { userId_campaignId: { userId, campaignId } },
