@@ -77,15 +77,17 @@ export async function fetchClipPreview(url: string): Promise<ClipPreview> {
   };
 }
 
-export async function addClip(formData: FormData) {
+export type AddClipResult = { ok: true } | { ok: false; message: string };
+
+export async function addClip(formData: FormData): Promise<AddClipResult> {
   const userId = await uid();
   const campaignId = String(formData.get("campaignId") ?? "");
   const url = String(formData.get("url") ?? "").trim();
   const platform = (String(formData.get("platform") ?? "INSTAGRAM") as Platform);
-  if (!campaignId || !url) throw new Error("Missing fields");
+  if (!campaignId || !url) return { ok: false, message: "Missing fields." };
 
   const campaign = await prisma.campaign.findUnique({ where: { id: campaignId } });
-  if (!campaign) throw new Error("Campaign not found");
+  if (!campaign) return { ok: false, message: "Campaign not found." };
 
   // Block re-submitting the same clip while it's still pending or approved.
   // A rejected clip can be re-added (it won't match below).
@@ -100,9 +102,7 @@ export async function addClip(formData: FormData) {
       return !!k && k === dupKey;
     });
     if (clash) {
-      throw new Error(
-        "You've already submitted this clip — it's pending or approved. You can re-add it only if it was rejected."
-      );
+      return { ok: false, message: "This clip is already pending or approved." };
     }
   }
 
@@ -117,16 +117,16 @@ export async function addClip(formData: FormData) {
     // Gate: must have at least one verified Instagram account.
     const handles = await verifiedIgHandles(userId);
     if (handles.size === 0) {
-      throw new Error("Verify an Instagram account first (Social Verification).");
+      return { ok: false, message: "Verify an Instagram account first (Social Verification)." };
     }
     if (!isInstagramUrl(url) || !extractShortcode(url)) {
-      throw new Error("Only Instagram post/reel links are supported.");
+      return { ok: false, message: "Only Instagram post/reel links are supported." };
     }
     // Re-fetch server-side (never trust client-sent stats) and verify ownership.
     const post = await instagram().getPost(url);
-    if (!post) throw new Error("Couldn't fetch that post — check the link.");
+    if (!post) return { ok: false, message: "Couldn't read that post — check the link." };
     if (!handles.has(post.ownerUsername.toLowerCase())) {
-      throw new Error(`That post belongs to @${post.ownerUsername}, not a verified account of yours.`);
+      return { ok: false, message: `That post belongs to @${post.ownerUsername}, not a verified account of yours.` };
     }
 
     await join();
@@ -150,7 +150,7 @@ export async function addClip(formData: FormData) {
       select: { id: true },
     });
     if (!verified) {
-      throw new Error(`Verify a ${platform} account first (Social Verification).`);
+      return { ok: false, message: `Verify a ${platform} account first (Social Verification).` };
     }
     const views = parseInt(String(formData.get("views") ?? "0"), 10) || 0;
     const title = String(formData.get("title") ?? "").trim() || null;
@@ -168,6 +168,7 @@ export async function addClip(formData: FormData) {
   revalidatePath("/dashboard");
   revalidatePath("/campaigns");
   revalidatePath("/earnings");
+  return { ok: true };
 }
 
 /** Re-fetches the live view count for a submission. */

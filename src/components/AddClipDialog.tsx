@@ -92,14 +92,15 @@ export function AddClipDialog({
     setError("");
     startSubmit(async () => {
       try {
-        await addClip(fd);
+        const r = await addClip(fd);
+        if (!r.ok) { setError(r.message); return; }
         setDone(true);
         setTimeout(() => {
           setOpen(false);
           reset();
         }, 1300);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Couldn't submit this clip.");
+      } catch {
+        setError("Couldn't submit this clip. Please try again.");
       }
     });
   };
