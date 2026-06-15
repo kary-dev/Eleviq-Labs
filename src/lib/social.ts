@@ -74,13 +74,13 @@ export async function getPostFor(p: Platform, url: string): Promise<VPost | null
   if (p === "YOUTUBE") {
     const x = await youtube().getVideo(url);
     if (!x) return null;
-    // YouTube ownership is by channelId, but display channel by handle. Fetch profile to get handle.
-    const profile = await youtube().getProfile(x.channelId.startsWith("UC") ? x.channelId : x.channelTitle);
+    // YouTube ownership is by channelId, but display by handle. Fetch profile to get customUrl.
+    const profile = await youtube().getProfile(x.channelId);
     return {
       views: x.views,
       title: x.title,
       thumbnailUrl: x.thumbnailUrl,
-      ownerHandle: profile?.handle ?? x.channelTitle,
+      ownerHandle: profile?.handle ?? null,
       ownerId: x.channelId,
     };
   }
