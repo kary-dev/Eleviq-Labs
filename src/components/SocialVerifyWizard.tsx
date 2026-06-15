@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import {
   verifyAccount, removeSocial,
-  startInstagramVerification, checkInstagramBio,
+  startVerification, checkVerification,
 } from "@/app/(creator)/actions";
 import { PLATFORMS, PLATFORM_KEYS, PlatformKey } from "@/lib/platforms";
 import { CopyField } from "@/components/CopyField";
@@ -298,7 +298,7 @@ function LinkFlow({
   platform: PlatformKey; pending: boolean;
   onBack: () => void; onFinish: (handle: string) => void; onVerified: (handle: string) => void;
 }) {
-  const isInstagram = platform === "INSTAGRAM";
+  const hasProvider = platform !== "X";
 
   const [handle, setHandle] = useState("");
   const [creds, setCreds] = useState<{ email: string; username: string; password: string } | null>(null);
@@ -315,20 +315,21 @@ function LinkFlow({
     const u = cleanHandle(handle).toLowerCase();
     if (!u) return;
     const generated = { username: u, email: `${u}@creators.eleviqlabs.com`, password: genPassword() };
-    if (!isInstagram) {
+    if (!hasProvider) {
       setCreds(generated);
       setCode(rand(6));
       setStarted(true);
       return;
     }
     const fd = new FormData();
+    fd.set("platform", platform);
     fd.set("handle", u);
     fd.set("method", "link");
     fd.set("loginEmail", generated.email);
     fd.set("loginUsername", generated.username);
     fd.set("loginPassword", generated.password);
     start(async () => {
-      const r = await startInstagramVerification(fd);
+      const r = await startVerification(fd);
       if (!r.ok) { setError(r.message); return; }
       setCreds(generated);
       setAccountId(r.accountId);
@@ -339,10 +340,10 @@ function LinkFlow({
 
   const check = () => {
     setError("");
-    if (!isInstagram) { onFinish(handle); return; }
+    if (!hasProvider) { onFinish(handle); return; }
     if (!accountId) return;
     start(async () => {
-      const r = await checkInstagramBio(accountId);
+      const r = await checkVerification(accountId);
       if (!r.ok) { setError(r.message); return; }
       onVerified(cleanHandle(handle));
     });
@@ -421,43 +422,44 @@ function BioFlow({
   platform: PlatformKey; pending: boolean;
   onBack: () => void; onFinish: (handle: string) => void; onVerified: (handle: string) => void;
 }) {
-  const isInstagram = platform === "INSTAGRAM";
+  const hasProvider = platform !== "X";
 
   const [handle, setHandle] = useState("");
   const [started, setStarted] = useState(false);
 
-  // Real Instagram flow state
+  // Real verification flow state (Instagram / YouTube / TikTok)
   const [accountId, setAccountId] = useState<string | null>(null);
   const [realCode, setRealCode] = useState("");
   const [busy, start] = useTransition();
   const [error, setError] = useState("");
-  const [info, setInfo] = useState<{ followers: number; isProfessional: boolean } | null>(null);
+  const [info, setInfo] = useState<{ followers: number } | null>(null);
 
-  // Simulated (non-IG) code
-  const simCode = useMemo(() => (started && !isInstagram ? rand(6) : ""), [started, isInstagram]);
-  const code = isInstagram ? realCode : simCode;
+  // Simulated (X) code
+  const simCode = useMemo(() => (started && !hasProvider ? rand(6) : ""), [started, hasProvider]);
+  const code = hasProvider ? realCode : simCode;
 
   const getCode = () => {
     setError("");
-    if (!isInstagram) { setStarted(true); return; }
+    if (!hasProvider) { setStarted(true); return; }
     const fd = new FormData();
+    fd.set("platform", platform);
     fd.set("handle", cleanHandle(handle));
     start(async () => {
-      const r = await startInstagramVerification(fd);
+      const r = await startVerification(fd);
       if (!r.ok) { setError(r.message); return; }
       setAccountId(r.accountId);
       setRealCode(r.code);
-      setInfo({ followers: r.followers, isProfessional: r.isProfessional });
+      setInfo({ followers: r.followers });
       setStarted(true);
     });
   };
 
   const check = () => {
     setError("");
-    if (!isInstagram) { onFinish(handle); return; }
+    if (!hasProvider) { onFinish(handle); return; }
     if (!accountId) return;
     start(async () => {
-      const r = await checkInstagramBio(accountId);
+      const r = await checkVerification(accountId);
       if (!r.ok) { setError(r.message); return; }
       onVerified(cleanHandle(handle));
     });

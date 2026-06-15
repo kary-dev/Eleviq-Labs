@@ -39,7 +39,7 @@ export function AddClipDialog({
   const [done, setDone] = useState(false);
   const [mounted, setMounted] = useState(false);
 
-  const isIG = platform === "INSTAGRAM";
+  const auto = platform !== "X";
 
   useEffect(() => setMounted(true), []);
   useEffect(() => {
@@ -67,15 +67,15 @@ export function AddClipDialog({
   };
 
   const doFetch = (value: string) => {
-    if (!isIG) return;
+    if (!auto) return;
     const v = value.trim();
-    if (!v || !/instagram\.com\//i.test(v)) {
+    if (!v) {
       setPreview(null);
       return;
     }
     setError("");
     startFetch(async () => {
-      const p = await fetchClipPreview(v);
+      const p = await fetchClipPreview(platform, v);
       setPreview(p);
     });
   };
@@ -85,7 +85,7 @@ export function AddClipDialog({
     fd.set("campaignId", campaign.id);
     fd.set("platform", platform);
     fd.set("url", url.trim());
-    if (isIG) {
+    if (auto) {
       if (!preview?.ok || !preview.ownedByYou) return;
     } else {
       if (!url.trim() || views <= 0) return;
@@ -108,7 +108,7 @@ export function AddClipDialog({
     });
   };
 
-  const canSubmit = isIG
+  const canSubmit = auto
     ? !!preview?.ok && !!preview.ownedByYou && !pending
     : !!url.trim() && views > 0 && !pending;
 
@@ -171,33 +171,33 @@ export function AddClipDialog({
 
                 <div>
                   <label className="label flex items-center gap-1.5">
-                    <PlatIcon className="h-3.5 w-3.5" /> {PLATFORMS[platform].label} {isIG ? "post / reel link" : "link"}
+                    <PlatIcon className="h-3.5 w-3.5" /> {PLATFORMS[platform].label} link
                   </label>
                   <input
                     value={url}
-                    onChange={(e) => { setUrl(e.target.value); if (isIG) setPreview(null); }}
+                    onChange={(e) => { setUrl(e.target.value); if (auto) setPreview(null); }}
                     onBlur={(e) => doFetch(e.target.value)}
                     onPaste={(e) => setTimeout(() => doFetch((e.target as HTMLInputElement).value), 0)}
                     placeholder={PLATFORMS[platform].placeholder}
                     className="input"
                   />
                   <p className="mt-1.5 text-xs text-muted">
-                    {isIG
+                    {auto
                       ? "Paste the link — we check it belongs to a verified account of yours."
                       : "Paste the link, then enter the current view count below."}
                   </p>
                 </div>
 
                 {/* Instagram: username + ownership check only */}
-                {isIG && fetching && (
+                {auto && fetching && (
                   <div className="rounded-xl border border-border bg-surface-2/50 px-4 py-3 text-sm text-muted">
                     Checking the account…
                   </div>
                 )}
-                {isIG && !fetching && preview && !preview.ok && (
+                {auto && !fetching && preview && !preview.ok && (
                   <p className="text-sm text-rose-400">{preview.message}</p>
                 )}
-                {isIG && !fetching && preview?.ok && (
+                {auto && !fetching && preview?.ok && (
                   <div className="rounded-xl border border-border bg-surface-2/50 px-4 py-3">
                     <div className="flex items-center gap-1.5 text-sm font-semibold">
                       @{preview.ownerUsername}
@@ -216,7 +216,7 @@ export function AddClipDialog({
                 )}
 
                 {/* Non-Instagram: manual title + views */}
-                {!isIG && (
+                {!auto && (
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="label">Title (optional)</label>
@@ -236,7 +236,7 @@ export function AddClipDialog({
                   </div>
                 )}
 
-                {!isIG && views > 0 && (
+                {!auto && views > 0 && (
                   <div className="flex items-center justify-between rounded-xl border border-border bg-surface-2/50 px-4 py-3 text-sm">
                     <span className="text-muted">Est. payout at {compact(views)} views</span>
                     <span className="font-display text-lg font-bold text-accent">

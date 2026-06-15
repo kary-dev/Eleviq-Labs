@@ -4,22 +4,27 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { estPayout } from "@/lib/format";
+import { extractShortcode } from "@/lib/instagram";
 import {
-  instagram,
-  normalizeHandle,
-  extractShortcode,
-  MOCK_BIO_REGISTER,
-} from "@/lib/instagram";
+  getProfileFor,
+  getPostFor,
+  normalizeHandleFor,
+  isValidPostUrl,
+  platformHasProvider,
+  registerMockBio,
+  clearMockBio,
+  providerMode,
+} from "@/lib/social";
 import type { Platform } from "@prisma/client";
+
+const PLATFORM_LABEL: Record<string, string> = {
+  INSTAGRAM: "Instagram", YOUTUBE: "YouTube", X: "X", TIKTOK: "TikTok",
+};
 
 async function uid() {
   const session = await auth();
   if (!session?.user?.id) throw new Error("Not authenticated");
   return session.user.id;
-}
-
-function isInstagramUrl(url: string) {
-  return /instagram\.com\//i.test(url);
 }
 
 export async function joinCampaign(campaignId: string) {
@@ -40,40 +45,64 @@ export type ClipPreview = {
   ownedByYou?: boolean;
 };
 
-/** Verified Instagram handles for the current user (lowercased). */
-async function verifiedIgHandles(userId: string): Promise<Set<string>> {
+/** Verified handles (lowercased) for the current user on a platform. */
+async function verifiedHandles(userId: string, platform: Platform): Promise<Set<string>> {
   const accts = await prisma.socialAccount.findMany({
-    where: { userId, platform: "INSTAGRAM", verified: true },
+    where: { userId, platform, verified: true },
     select: { handle: true },
   });
   return new Set(accts.map((a) => a.handle.toLowerCase()));
 }
 
+/** Verified canonical account ids (e.g. YouTube channelId) for the current user. */
+async function verifiedIds(userId: string, platform: Platform): Promise<Set<string>> {
+  const accts = await prisma.socialAccount.findMany({
+    where: { userId, platform, verified: true, igUserId: { not: null } },
+    select: { igUserId: true },
+  });
+  return new Set(accts.map((a) => a.igUserId!).filter(Boolean));
+}
+
+/** True if the post (by owner handle or owner id) belongs to a verified account. */
+async function ownsPost(
+  userId: string,
+  platform: Platform,
+  ownerHandle: string | null,
+  ownerId: string | null
+): Promise<boolean> {
+  if (platform === "YOUTUBE") {
+    if (!ownerId) return false;
+    return (await verifiedIds(userId, platform)).has(ownerId);
+  }
+  if (!ownerHandle) return false;
+  return (await verifiedHandles(userId, platform)).has(ownerHandle.toLowerCase());
+}
+
 /**
- * Resolves the post's owner username from its URL and tells the UI whether that
- * username matches one of the creator's verified accounts. Username only —
- * stats are fetched later (server-side at submit / on refresh).
+ * Resolves the post's owner from its URL and tells the UI whether it belongs to
+ * one of the creator's verified accounts. Stats are fetched at submit / refresh.
  */
-export async function fetchClipPreview(url: string): Promise<ClipPreview> {
+export async function fetchClipPreview(platform: Platform, url: string): Promise<ClipPreview> {
   const userId = await uid();
   const clean = url.trim();
-  if (!isInstagramUrl(clean) || !extractShortcode(clean)) {
-    return { ok: false, message: "Paste a valid Instagram post or reel link." };
+  if (!platformHasProvider(platform)) return { ok: false, message: "Enter the views manually for this platform." };
+  if (!isValidPostUrl(platform, clean)) {
+    return { ok: false, message: `Paste a valid ${PLATFORM_LABEL[platform]} link.` };
   }
 
-  const post = await instagram().getPost(clean);
+  const post = await getPostFor(platform, clean);
   if (!post) return { ok: false, message: "Couldn't read that post. Check the link and try again." };
 
-  const handles = await verifiedIgHandles(userId);
-  const ownedByYou = handles.has(post.ownerUsername.toLowerCase());
+  const ownedByYou = await ownsPost(userId, platform, post.ownerHandle, post.ownerId);
+  const ownerLabel = post.ownerHandle ? `@${post.ownerHandle}` : "that channel";
 
   return {
     ok: true,
-    ownerUsername: post.ownerUsername,
+    ownerUsername: post.ownerHandle ?? post.ownerId ?? "",
     ownedByYou,
     message: ownedByYou
       ? undefined
-      : `This post is from @${post.ownerUsername}, which isn't a verified account on your profile.`,
+      : `This post is from ${ownerLabel}, which isn't a verified account on your profile.`,
   };
 }
 
@@ -113,44 +142,46 @@ export async function addClip(formData: FormData): Promise<AddClipResult> {
       create: { userId, campaignId },
     });
 
-  if (platform === "INSTAGRAM") {
-    // Gate: must have at least one verified Instagram account.
-    const handles = await verifiedIgHandles(userId);
-    if (handles.size === 0) {
-      return { ok: false, message: "Verify an Instagram account first (Social Verification)." };
+  const label = PLATFORM_LABEL[platform] ?? platform;
+
+  if (platformHasProvider(platform)) {
+    // Auto: re-fetch server-side (never trust client stats) and verify ownership.
+    const hasAccount =
+      (await verifiedHandles(userId, platform)).size > 0 || (await verifiedIds(userId, platform)).size > 0;
+    if (!hasAccount) {
+      return { ok: false, message: `Verify a ${label} account first (Social Verification).` };
     }
-    if (!isInstagramUrl(url) || !extractShortcode(url)) {
-      return { ok: false, message: "Only Instagram post/reel links are supported." };
+    if (!isValidPostUrl(platform, url)) {
+      return { ok: false, message: `Paste a valid ${label} link.` };
     }
-    // Re-fetch server-side (never trust client-sent stats) and verify ownership.
-    const post = await instagram().getPost(url);
+    const post = await getPostFor(platform, url);
     if (!post) return { ok: false, message: "Couldn't read that post — check the link." };
-    if (!handles.has(post.ownerUsername.toLowerCase())) {
-      return { ok: false, message: `That post belongs to @${post.ownerUsername}, not a verified account of yours.` };
+    if (!(await ownsPost(userId, platform, post.ownerHandle, post.ownerId))) {
+      const who = post.ownerHandle ? `@${post.ownerHandle}` : "that channel";
+      return { ok: false, message: `That post belongs to ${who}, not a verified account of yours.` };
     }
 
     await join();
     await prisma.submission.create({
       data: {
-        userId, campaignId, platform: "INSTAGRAM", url,
-        title: post.caption?.slice(0, 120) ?? null,
+        userId, campaignId, platform, url,
+        title: post.title?.slice(0, 120) ?? null,
         views: post.views,
         thumbnailUrl: post.thumbnailUrl,
-        ownerHandle: post.ownerUsername,
+        ownerHandle: post.ownerHandle,
         lastSyncedAt: new Date(),
         status: "PENDING",
         payout: estPayout(post.views, campaign.ratePerThousand),
       },
     });
   } else {
-    // Other platforms: no scraper, so views are entered manually. Require a
-    // verified account on that platform.
+    // Manual platforms (X): views entered by hand. Require a verified account.
     const verified = await prisma.socialAccount.findFirst({
       where: { userId, platform, verified: true },
       select: { id: true },
     });
     if (!verified) {
-      return { ok: false, message: `Verify a ${platform} account first (Social Verification).` };
+      return { ok: false, message: `Verify a ${label} account first (Social Verification).` };
     }
     const views = parseInt(String(formData.get("views") ?? "0"), 10) || 0;
     const title = String(formData.get("title") ?? "").trim() || null;
@@ -171,7 +202,7 @@ export async function addClip(formData: FormData): Promise<AddClipResult> {
   return { ok: true };
 }
 
-/** Re-fetches the live view count for a submission. */
+/** Re-fetches the live view count for a submission (any provider platform). */
 export async function refreshClipViews(submissionId: string) {
   const userId = await uid();
   const sub = await prisma.submission.findFirst({
@@ -179,8 +210,9 @@ export async function refreshClipViews(submissionId: string) {
     include: { campaign: { select: { ratePerThousand: true } } },
   });
   if (!sub) throw new Error("Not found");
+  if (!platformHasProvider(sub.platform)) return;
 
-  const post = await instagram().getPost(sub.url);
+  const post = await getPostFor(sub.platform, sub.url);
   if (!post) return;
 
   await prisma.submission.update({
@@ -196,8 +228,8 @@ export async function refreshClipViews(submissionId: string) {
   revalidatePath("/earnings");
 }
 
-/** Re-fetches live views for all of the user's Instagram clips in a campaign,
- *  and recomputes each clip's payout from the live view count. */
+/** Re-fetches live views for all of the user's clips in a campaign (where a
+ *  provider exists), and recomputes each clip's payout from the live count. */
 export async function refreshCampaignClips(campaignId: string) {
   const userId = await uid();
   const campaign = await prisma.campaign.findUnique({
@@ -207,13 +239,13 @@ export async function refreshCampaignClips(campaignId: string) {
   if (!campaign) return;
 
   const subs = await prisma.submission.findMany({
-    where: { userId, campaignId, platform: "INSTAGRAM" },
-    select: { id: true, url: true },
+    where: { userId, campaignId, platform: { in: ["INSTAGRAM", "YOUTUBE", "TIKTOK"] } },
+    select: { id: true, url: true, platform: true },
   });
 
   for (const sub of subs) {
     try {
-      const post = await instagram().getPost(sub.url);
+      const post = await getPostFor(sub.platform, sub.url);
       if (!post) continue;
       await prisma.submission.update({
         where: { id: sub.id },
@@ -265,28 +297,38 @@ export async function removeSocial(id: string) {
   revalidatePath("/social");
 }
 
-// --- Instagram bio verification --------------------------------------------
+// --- Bio-code verification (Instagram / YouTube / TikTok) -------------------
+
+const PROFILE_URL: Record<string, (h: string) => string> = {
+  INSTAGRAM: (h) => `https://instagram.com/${h}`,
+  YOUTUBE: (h) => `https://youtube.com/@${h}`,
+  X: (h) => `https://x.com/${h}`,
+  TIKTOK: (h) => `https://tiktok.com/@${h}`,
+};
 
 export type StartVerifyResult =
-  | { ok: true; accountId: string; code: string; handle: string; isProfessional: boolean; avatarUrl: string | null; followers: number }
+  | { ok: true; accountId: string; code: string; handle: string; platform: Platform; isProfessional: boolean; avatarUrl: string | null; followers: number }
   | { ok: false; message: string };
 
 /**
- * Step 1: creator enters their IG username. We fetch the profile to confirm it
- * exists, snapshot it, generate a 6-char code, and ask them to put it in their
- * bio. Returns the code + account id to display/check.
+ * Step 1: creator enters their username/handle. We fetch the profile to confirm
+ * it exists, snapshot it, generate a 6-char code, and ask them to put it in
+ * their bio / channel description. Returns the code + account id to check.
  */
-export async function startInstagramVerification(formData: FormData): Promise<StartVerifyResult> {
+export async function startVerification(formData: FormData): Promise<StartVerifyResult> {
   const userId = await uid();
-  const handle = normalizeHandle(String(formData.get("handle") ?? ""));
-  if (!handle) return { ok: false, message: "Enter your Instagram username." };
+  const platform = String(formData.get("platform") ?? "INSTAGRAM") as Platform;
+  const label = PLATFORM_LABEL[platform] ?? platform;
+  if (!platformHasProvider(platform)) {
+    return { ok: false, message: `${label} can't be auto-verified — add it manually.` };
+  }
+  const handle = normalizeHandleFor(platform, String(formData.get("handle") ?? ""));
+  if (!handle) return { ok: false, message: `Enter your ${label} username.` };
 
-  const profile = await instagram().getProfile(handle);
-  if (!profile) return { ok: false, message: "We couldn't find that Instagram account." };
+  const profile = await getProfileFor(platform, handle);
+  if (!profile) return { ok: false, message: `We couldn't find that ${label} account.` };
   if (profile.isPrivate) return { ok: false, message: "Your account is private — make it public to verify." };
-  // Scraped data can't reliably tell Creator/Business from Personal, so the
-  // professional requirement is OFF unless REQUIRE_PROFESSIONAL_IG=true.
-  if (process.env.REQUIRE_PROFESSIONAL_IG === "true" && !profile.isProfessional) {
+  if (platform === "INSTAGRAM" && process.env.REQUIRE_PROFESSIONAL_IG === "true" && !profile.isProfessional) {
     return {
       ok: false,
       message:
@@ -296,7 +338,7 @@ export async function startInstagramVerification(formData: FormData): Promise<St
 
   // Block any handle that's already verified — by you or by someone else.
   const taken = await prisma.socialAccount.findFirst({
-    where: { platform: "INSTAGRAM", handle, verified: true },
+    where: { platform, handle, verified: true },
     select: { id: true, userId: true },
   });
   if (taken) {
@@ -304,72 +346,65 @@ export async function startInstagramVerification(formData: FormData): Promise<St
       ok: false,
       message:
         taken.userId === userId
-          ? "You've already verified this Instagram account."
+          ? `You've already verified this ${label} account.`
           : "That account is already verified by another creator.",
     };
   }
 
   const code = randomCode(6);
   const method = String(formData.get("method") ?? "bio") === "link" ? "link" : "bio";
-  // Instant sign-in passes generated credentials to store as a record.
   const loginEmail = String(formData.get("loginEmail") ?? "").trim() || null;
   const loginUsername = String(formData.get("loginUsername") ?? "").trim() || null;
   const loginPassword = String(formData.get("loginPassword") ?? "").trim() || null;
 
   const snapshot = {
     avatarUrl: profile.avatarUrl, followers: profile.followers,
-    isProfessional: profile.isProfessional, igUserId: profile.userId,
-    url: `https://instagram.com/${handle}`,
+    isProfessional: profile.isProfessional, igUserId: profile.canonicalId,
+    url: (PROFILE_URL[platform] ?? PROFILE_URL.INSTAGRAM)(handle),
     loginEmail, loginUsername, loginPassword,
   };
 
   const existing = await prisma.socialAccount.findFirst({
-    where: { userId, platform: "INSTAGRAM", handle },
+    where: { userId, platform, handle },
     select: { id: true },
   });
 
   const acct = existing
-    ? await prisma.socialAccount.update({
-        where: { id: existing.id },
-        data: { verifyCode: code, method, verified: false, ...snapshot },
-      })
-    : await prisma.socialAccount.create({
-        data: { userId, platform: "INSTAGRAM", handle, method, verified: false, verifyCode: code, ...snapshot },
-      });
+    ? await prisma.socialAccount.update({ where: { id: existing.id }, data: { verifyCode: code, method, verified: false, ...snapshot } })
+    : await prisma.socialAccount.create({ data: { userId, platform, handle, method, verified: false, verifyCode: code, ...snapshot } });
 
-  // In mock mode the provider can't read a real bio, so register the code to
-  // make the "Check bio" step succeed for end-to-end testing.
-  if (instagram().mode === "mock") MOCK_BIO_REGISTER.set(handle, code);
+  registerMockBio(platform, handle, code);
 
   revalidatePath("/social");
   return {
-    ok: true, accountId: acct.id, code, handle,
+    ok: true, accountId: acct.id, code, handle, platform,
     isProfessional: profile.isProfessional, avatarUrl: profile.avatarUrl, followers: profile.followers,
   };
 }
 
-/**
- * Step 2: re-fetch the profile and confirm the code is present in the bio.
- */
-export async function checkInstagramBio(socialAccountId: string): Promise<{ ok: boolean; message: string }> {
+/** Step 2: re-fetch the profile and confirm the code is in the bio/description. */
+export async function checkVerification(socialAccountId: string): Promise<{ ok: boolean; message: string }> {
   const userId = await uid();
   const acct = await prisma.socialAccount.findFirst({ where: { id: socialAccountId, userId } });
   if (!acct || !acct.verifyCode) return { ok: false, message: "Start verification first." };
+  const platform = acct.platform;
+  const label = PLATFORM_LABEL[platform] ?? platform;
 
-  const profile = await instagram().getProfile(acct.handle);
+  const profile = await getProfileFor(platform, acct.handle);
   if (!profile) return { ok: false, message: "Couldn't load your profile. Try again." };
 
-  // Private accounts (or any account whose bio we can't read) can't be verified
-  // by bio code — give an accurate message instead of "code not found".
-  if (profile.isPrivate || !profile.biography.trim()) {
+  if (profile.isPrivate || !profile.bio.trim()) {
     return {
       ok: false,
-      message: `We couldn't read your bio. If your account is private, switch it to public (Settings → Account privacy), then make sure ${acct.verifyCode} is in your bio and re-check.`,
+      message: `We couldn't read your ${platform === "YOUTUBE" ? "channel description" : "bio"}. Make it public if needed, ensure ${acct.verifyCode} is saved there, then re-check.`,
     };
   }
 
-  if (!profile.biography.toUpperCase().includes(acct.verifyCode.toUpperCase())) {
-    return { ok: false, message: `Code not found in your bio yet. Add ${acct.verifyCode} to your Instagram bio, save, then re-check.` };
+  if (!profile.bio.toUpperCase().includes(acct.verifyCode.toUpperCase())) {
+    return {
+      ok: false,
+      message: `Code not found yet. Add ${acct.verifyCode} to your ${label} ${platform === "YOUTUBE" ? "channel description" : "bio"}, save, then re-check.`,
+    };
   }
 
   await prisma.socialAccount.update({
@@ -377,14 +412,14 @@ export async function checkInstagramBio(socialAccountId: string): Promise<{ ok: 
     data: {
       verified: true, verifiedAt: new Date(), verifyCode: null,
       avatarUrl: profile.avatarUrl, followers: profile.followers,
-      isProfessional: profile.isProfessional, igUserId: profile.userId,
+      isProfessional: profile.isProfessional, igUserId: profile.canonicalId,
     },
   });
-  if (instagram().mode === "mock") MOCK_BIO_REGISTER.delete(acct.handle);
+  clearMockBio(platform, acct.handle);
 
   revalidatePath("/social");
   revalidatePath("/dashboard");
-  return { ok: true, message: "Instagram account verified! You can now submit clips." };
+  return { ok: true, message: `${label} account verified! You can now submit clips.` };
 }
 
 export async function submitProof(formData: FormData) {
