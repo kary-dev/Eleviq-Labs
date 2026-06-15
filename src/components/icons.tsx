@@ -64,6 +64,9 @@ export const UploadIcon = (p: P) => (
 export const EyeIcon = (p: P) => (
   <svg {...base(p)}><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></svg>
 );
+export const RefreshIcon = (p: P) => (
+  <svg {...base(p)}><path d="M21 12a9 9 0 1 1-2.64-6.36" /><path d="M21 4v5h-5" /></svg>
+);
 export const KeyIcon = (p: P) => (
   <svg {...base(p)}><circle cx="8" cy="15" r="4" /><path d="m10.8 12.2 8.2-8.2" /><path d="m17 5 2.5 2.5M14 8l2.5 2.5" /></svg>
 );

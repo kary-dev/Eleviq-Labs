@@ -176,6 +176,44 @@ export async function refreshClipViews(submissionId: string) {
   revalidatePath("/earnings");
 }
 
+/** Re-fetches live views for all of the user's Instagram clips in a campaign,
+ *  and recomputes each clip's payout from the live view count. */
+export async function refreshCampaignClips(campaignId: string) {
+  const userId = await uid();
+  const campaign = await prisma.campaign.findUnique({
+    where: { id: campaignId },
+    select: { ratePerThousand: true },
+  });
+  if (!campaign) return;
+
+  const subs = await prisma.submission.findMany({
+    where: { userId, campaignId, platform: "INSTAGRAM" },
+    select: { id: true, url: true },
+  });
+
+  for (const sub of subs) {
+    try {
+      const post = await instagram().getPost(sub.url);
+      if (!post) continue;
+      await prisma.submission.update({
+        where: { id: sub.id },
+        data: {
+          views: post.views,
+          lastSyncedAt: new Date(),
+          payout: estPayout(post.views, campaign.ratePerThousand),
+        },
+      });
+    } catch {
+      // Skip clips that fail to refresh; keep the last known views.
+    }
+  }
+
+  revalidatePath(`/campaigns/${campaignId}`);
+  revalidatePath("/campaigns");
+  revalidatePath("/dashboard");
+  revalidatePath("/earnings");
+}
+
 export async function verifyAccount(formData: FormData) {
   const userId = await uid();
   const platform = String(formData.get("platform") ?? "") as Platform;

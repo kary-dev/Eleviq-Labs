@@ -24,7 +24,7 @@ export function SubmissionRow({ s, showCampaign = true }: { s: SubmissionData; s
         <Icon className="h-[18px] w-[18px]" />
       </span>
       <div className="min-w-0 flex-1">
-        <a href={s.url} target="_blank" rel="noreferrer" className="truncate text-sm font-semibold hover:text-accent">
+        <a href={s.url} target="_blank" rel="noreferrer" className="block truncate text-sm font-semibold hover:text-accent">
           {s.title || s.url}
         </a>
         <p className="truncate text-xs text-muted">

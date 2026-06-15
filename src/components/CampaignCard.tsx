@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { AddClipDialog } from "@/components/AddClipDialog";
 import { JoinButton } from "@/components/JoinButton";
 import { StatusPill } from "@/components/ui";
@@ -41,7 +42,9 @@ export function CampaignCard({
             <StatusPill status={campaign.status} />
             {joined && <span className="pill bg-accent/10 text-accent">Joined</span>}
           </div>
-          <h3 className="mt-0.5 truncate font-display text-lg font-bold">{campaign.title}</h3>
+          <Link href={`/campaigns/${campaign.id}`} className="block">
+            <h3 className="mt-0.5 truncate font-display text-lg font-bold hover:text-accent">{campaign.title}</h3>
+          </Link>
         </div>
         <div className="text-right">
           <p className="font-display text-lg font-bold text-accent">{money(campaign.ratePerThousand)}</p>
