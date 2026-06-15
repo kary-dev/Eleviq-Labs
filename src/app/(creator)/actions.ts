@@ -37,9 +37,6 @@ export type ClipPreview = {
   ok: boolean;
   message?: string;
   ownerUsername?: string;
-  views?: number;
-  caption?: string | null;
-  thumbnailUrl?: string | null;
   ownedByYou?: boolean;
 };
 
@@ -53,8 +50,9 @@ async function verifiedIgHandles(userId: string): Promise<Set<string>> {
 }
 
 /**
- * Fetches a post's details from its URL so the creator doesn't type them in,
- * and tells the UI whether it belongs to one of their verified accounts.
+ * Resolves the post's owner username from its URL and tells the UI whether that
+ * username matches one of the creator's verified accounts. Username only —
+ * stats are fetched later (server-side at submit / on refresh).
  */
 export async function fetchClipPreview(url: string): Promise<ClipPreview> {
   const userId = await uid();
@@ -64,7 +62,7 @@ export async function fetchClipPreview(url: string): Promise<ClipPreview> {
   }
 
   const post = await instagram().getPost(clean);
-  if (!post) return { ok: false, message: "Couldn't fetch that post. Check the link and try again." };
+  if (!post) return { ok: false, message: "Couldn't read that post. Check the link and try again." };
 
   const handles = await verifiedIgHandles(userId);
   const ownedByYou = handles.has(post.ownerUsername.toLowerCase());
@@ -72,11 +70,10 @@ export async function fetchClipPreview(url: string): Promise<ClipPreview> {
   return {
     ok: true,
     ownerUsername: post.ownerUsername,
-    views: post.views,
-    caption: post.caption,
-    thumbnailUrl: post.thumbnailUrl,
     ownedByYou,
-    message: ownedByYou ? undefined : `This post is from @${post.ownerUsername}, which isn't a verified account on your profile.`,
+    message: ownedByYou
+      ? undefined
+      : `This post is from @${post.ownerUsername}, which isn't a verified account on your profile.`,
   };
 }
 

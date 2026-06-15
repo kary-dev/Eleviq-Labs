@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { addClip, fetchClipPreview, type ClipPreview } from "@/app/(creator)/actions";
 import { PLATFORMS, PlatformKey } from "@/lib/platforms";
 import { estPayout, compact, money } from "@/lib/format";
-import { PlusIcon, XIcon, UploadIcon, CheckIcon, EyeIcon } from "@/components/icons";
+import { PlusIcon, XIcon, UploadIcon, CheckIcon } from "@/components/icons";
 
 type Campaign = {
   id: string;
@@ -108,7 +108,6 @@ export function AddClipDialog({
     ? !!preview?.ok && !!preview.ownedByYou && !pending
     : !!url.trim() && views > 0 && !pending;
 
-  const estViews = isIG ? preview?.views ?? 0 : views;
   const PlatIcon = PLATFORMS[platform].Icon;
 
   return (
@@ -180,48 +179,34 @@ export function AddClipDialog({
                   />
                   <p className="mt-1.5 text-xs text-muted">
                     {isIG
-                      ? "Paste the link — we fetch the views and details automatically."
+                      ? "Paste the link — we check it belongs to a verified account of yours."
                       : "Paste the link, then enter the current view count below."}
                   </p>
                 </div>
 
-                {/* Instagram: auto-fetched preview */}
+                {/* Instagram: username + ownership check only */}
                 {isIG && fetching && (
                   <div className="rounded-xl border border-border bg-surface-2/50 px-4 py-3 text-sm text-muted">
-                    Fetching post details…
+                    Checking the account…
                   </div>
                 )}
                 {isIG && !fetching && preview && !preview.ok && (
                   <p className="text-sm text-rose-400">{preview.message}</p>
                 )}
                 {isIG && !fetching && preview?.ok && (
-                  <div className="overflow-hidden rounded-xl border border-border bg-surface-2/50">
-                    <div className="flex gap-3 p-3">
-                      {preview.thumbnailUrl && (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={preview.thumbnailUrl} alt="" className="h-16 w-16 shrink-0 rounded-lg object-cover" />
+                  <div className="rounded-xl border border-border bg-surface-2/50 px-4 py-3">
+                    <div className="flex items-center gap-1.5 text-sm font-semibold">
+                      @{preview.ownerUsername}
+                      {preview.ownedByYou ? (
+                        <span className="inline-flex items-center gap-1 text-emerald-400">
+                          <CheckIcon className="h-3.5 w-3.5" /> verified account
+                        </span>
+                      ) : (
+                        <span className="text-rose-400">· not your account</span>
                       )}
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5 text-sm font-semibold">
-                          @{preview.ownerUsername}
-                          {preview.ownedByYou ? (
-                            <span className="inline-flex items-center gap-1 text-emerald-400">
-                              <CheckIcon className="h-3.5 w-3.5" /> verified
-                            </span>
-                          ) : (
-                            <span className="text-rose-400">· not your account</span>
-                          )}
-                        </div>
-                        <p className="mt-0.5 line-clamp-2 text-xs text-muted">{preview.caption ?? "—"}</p>
-                        <p className="mt-1 inline-flex items-center gap-1 text-xs text-muted">
-                          <EyeIcon className="h-3.5 w-3.5" /> {compact(preview.views ?? 0)} views
-                        </p>
-                      </div>
                     </div>
                     {!preview.ownedByYou && (
-                      <p className="border-t border-border bg-rose-500/10 px-3 py-2 text-xs text-rose-400">
-                        {preview.message}
-                      </p>
+                      <p className="mt-1 text-xs text-rose-400">{preview.message}</p>
                     )}
                   </div>
                 )}
@@ -247,11 +232,11 @@ export function AddClipDialog({
                   </div>
                 )}
 
-                {((isIG && preview?.ok && preview.ownedByYou) || (!isIG && views > 0)) && (
+                {!isIG && views > 0 && (
                   <div className="flex items-center justify-between rounded-xl border border-border bg-surface-2/50 px-4 py-3 text-sm">
-                    <span className="text-muted">Est. payout at {compact(estViews)} views</span>
+                    <span className="text-muted">Est. payout at {compact(views)} views</span>
                     <span className="font-display text-lg font-bold text-accent">
-                      {money(estPayout(estViews, campaign.ratePerThousand))}
+                      {money(estPayout(views, campaign.ratePerThousand))}
                     </span>
                   </div>
                 )}
