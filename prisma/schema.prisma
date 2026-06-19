@@ -1,0 +1,346 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Auth.js (NextAuth) models
+// ---------------------------------------------------------------------------
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  role          Role      @default(CREATOR)
+
+  // Credentials login (generated during Instagram instant sign-up)
+  username     String? @unique // the creator's Instagram handle
+  passwordHash String? // scrypt salt:hash for email+password sign-in
+
+  // Referral system — code is null until the creator generates one
+  referralCode String? @unique
+  referredById String?
+  referredBy   User?   @relation("Referrals", fields: [referredById], references: [id])
+  referrals    User[]  @relation("Referrals")
+
+  // Meta / Instagram Graph API token (for fetching real insights)
+  metaAccessToken String?
+  metaIgAccountId String? // Instagram Business Account ID
+
+  // Creator tier: computed from total approved views
+  tier             String  @default("BRONZE") // BRONZE | SILVER | GOLD
+  leaderboardOptIn Boolean @default(false)
+
+  // Admin: block/ban creator
+  banned    Boolean   @default(false)
+  bannedAt  DateTime?
+
+  accounts         Account[]
+  sessions         Session[]
+  socialAccounts   SocialAccount[]
+  participations   Participation[]
+  submissions      Submission[]
+  demographicProofs DemographicProof[]
+  bankAccount      BankAccount?
+  payouts          Payout[]
+  notifications    Notification[]
+  payoutRequests   PayoutRequest[]
+
+  createdAt DateTime @default(now())
+}
+
+enum Role {
+  CREATOR
+  ADMIN
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ---------------------------------------------------------------------------
+// Domain models
+// ---------------------------------------------------------------------------
+
+enum Platform {
+  INSTAGRAM
+  YOUTUBE
+  X
+  TIKTOK
+}
+
+// Lifecycle of a social account verification.
+// NONE -> (bio code matched) PENDING_REVIEW -> (admin) APPROVED | REJECTED
+enum AccountVerificationStatus {
+  NONE
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+}
+
+// A creator's connected & verified social account
+model SocialAccount {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  platform  Platform
+  handle    String
+  url       String?
+  verified  Boolean  @default(false)
+  verificationStatus AccountVerificationStatus @default(NONE)
+  method    String?  // how it was verified: "link" | "bio"
+
+  // Pending verification + fetched profile snapshot (Instagram)
+  verifyCode     String?   // 6-char code the creator must place in their bio
+  igUserId       String?   // instagram numeric id, used to match clips
+  avatarUrl      String?
+  followers      Int?
+  isProfessional Boolean?
+  verifiedAt     DateTime?
+
+  // Generated instant sign-in credentials (stored as a record; not a real login)
+  loginEmail     String?
+  loginUsername  String?
+  loginPassword  String?
+
+  demographicProofs DemographicProof[]
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+enum CampaignStatus {
+  ACTIVE
+  ENDED
+  DRAFT
+}
+
+// A brand campaign creators can clip for
+model Campaign {
+  id            String         @id @default(cuid())
+  title         String
+  brand         String
+  description   String
+  thumbnail     String? // emoji or image url
+  status        CampaignStatus @default(ACTIVE)
+  ratePerThousand Float        @default(1.5) // payout per 1,000 views ($)
+  budget        Float          @default(1000)
+  totalBudgetUsed Float        @default(0)
+  budgetPaused  Boolean        @default(false) // auto-paused when budget depleted
+  minViews      Int            @default(0)
+  discordUrl    String?
+  platforms     String         @default("INSTAGRAM,YOUTUBE,X,TIKTOK") // CSV of allowed platforms
+  endsAt        DateTime?
+  createdAt     DateTime       @default(now())
+
+  participations    Participation[]
+  submissions       Submission[]
+  demographicProofs DemographicProof[]
+}
+
+// A creator joining a campaign
+model Participation {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, campaignId])
+}
+
+enum SubmissionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// A submitted clip/video
+model Submission {
+  id          String           @id @default(cuid())
+  userId      String
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  campaignId  String
+  campaign    Campaign         @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  platform    Platform
+  url         String
+  title       String?
+  views       Int              @default(0)
+  status      SubmissionStatus @default(PENDING)
+  payout      Float            @default(0) // $ earned once approved
+  paidAt      DateTime?        // when this submission's views were included in a paid withdrawal
+  rejectReason String?
+  reviewedAt  DateTime?
+
+  // Creator-raised dispute when fetched views look wrong
+  viewsDisputed      Boolean  @default(false)
+  claimedViews       Int?     // the count the creator says is correct
+  disputeNote        String?  // optional creator explanation
+  disputeScreenshot  String?  // Vercel Blob URL of creator's Insights screenshot
+
+  // Fetched from the post URL at submission time + on refresh
+  thumbnailUrl String?
+  ownerHandle  String?  // instagram handle the post belongs to
+  lastSyncedAt DateTime?
+
+  createdAt   DateTime         @default(now())
+
+  demographicProofs DemographicProof[]
+  viewHistory       ViewHistory[]
+
+  @@index([status])
+  @@index([userId])
+}
+
+enum ProofStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// Proof of views / audience demographics for a submission
+model DemographicProof {
+  id           String      @id @default(cuid())
+  userId       String
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  campaignId   String?
+  campaign     Campaign?   @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  submissionId String?
+  submission   Submission? @relation(fields: [submissionId], references: [id], onDelete: SetNull)
+  imageUrl     String? // screenshot/proof (optional for "no_demographics" path)
+  note         String?
+  status       ProofStatus @default(PENDING)
+
+  socialAccountId String?
+  socialAccount   SocialAccount? @relation(fields: [socialAccountId], references: [id], onDelete: SetNull)
+
+  // method: "manual" | "no_demographics"
+  method       String?
+  aiResult     String?     // JSON: {countryData: [{country, views}, ...]}
+  verifiedByAdminAt DateTime?
+  approvedByAdminAt DateTime?
+
+  createdAt    DateTime    @default(now())
+}
+
+// Global admin-controlled settings (singleton row, id = "singleton")
+model SiteSettings {
+  id                             String  @id @default("singleton")
+  demographicVerificationEnabled Boolean @default(false)
+  updatedAt                      DateTime @updatedAt
+}
+
+// Creator's payout bank details
+model BankAccount {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountHolder String
+  accountNumber String
+  routingNumber String?
+  bankName      String?
+  country       String   @default("US")
+  paypalEmail   String?
+  upiId         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+enum PayoutStatus {
+  PENDING
+  PAID
+}
+
+// In-app notification
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String   // clip_approved | clip_rejected | proof_approved | proof_rejected | campaign_live | payout_sent
+  title     String
+  body      String?
+  read      Boolean  @default(false)
+  link      String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([userId, read])
+}
+
+// Creator-initiated withdrawal request
+model PayoutRequest {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount      Float
+  status      String    @default("PENDING") // PENDING | APPROVED | PAID | REJECTED
+  note        String?
+  adminNote   String?
+  createdAt   DateTime  @default(now())
+  processedAt DateTime?
+
+  @@index([userId])
+  @@index([status])
+}
+
+// View count snapshot per clip (recorded on each refresh)
+model ViewHistory {
+  id           String     @id @default(cuid())
+  submissionId String
+  submission   Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  views        Int
+  recordedAt   DateTime   @default(now())
+
+  @@index([submissionId])
+}
+
+// A payout to a creator
+model Payout {
+  id        String       @id @default(cuid())
+  userId    String
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount    Float
+  status    PayoutStatus @default(PENDING)
+  note      String?
+  createdAt DateTime     @default(now())
+  paidAt    DateTime?
+}

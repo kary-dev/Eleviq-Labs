@@ -1,0 +1,102 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* ELEVIQ LABS — red / cream / navy / blue palette */
+  --accent: 193 18 31; /* #C1121F red — primary */
+  --accent-2: 120 0 0; /* #780000 deep red — depth & glow */
+  --accent-blue: 102 155 188; /* #669BBC blue — secondary / ambient */
+  --accent-fg: 253 240 213; /* #FDF0D5 cream — text on red */
+}
+
+/* Dark theme (default) — navy base, cream text */
+.dark,
+:root {
+  --bg: 2 26 40; /* deep navy */
+  --surface: 0 41 62; /* navy */
+  --surface-2: 9 56 82;
+  --border: 21 74 104;
+  --fg: 253 240 213; /* cream */
+  --muted: 140 173 194; /* soft blue-gray */
+}
+
+/* Light theme — cream base, navy text */
+.light {
+  --bg: 253 240 213; /* cream */
+  --surface: 255 251 243;
+  --surface-2: 246 234 210;
+  --border: 226 209 178;
+  --fg: 0 48 73; /* #003049 navy */
+  --muted: 60 96 120; /* muted navy */
+}
+
+* {
+  border-color: rgb(var(--border));
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: rgb(var(--bg));
+  color: rgb(var(--fg));
+  font-family: Helvetica, "Helvetica Neue", Arial, system-ui, sans-serif;
+}
+
+/* Brand logo is white artwork — invert it on the light theme so it stays visible */
+.light .logo-img {
+  filter: invert(1);
+}
+
+/* Subtle ambient gradient backdrop */
+.app-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(60rem 40rem at 82% -12%, rgb(var(--accent) / 0.18), transparent 60%),
+    radial-gradient(48rem 34rem at -12% 112%, rgb(var(--accent-blue) / 0.18), transparent 55%);
+  pointer-events: none;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgb(var(--border));
+  border-radius: 99px;
+}
+::-webkit-scrollbar-thumb:hover { background: rgb(var(--muted) / 0.5); }
+
+@layer components {
+  .card {
+    @apply rounded-lg border border-border bg-surface/80 backdrop-blur-sm;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all duration-150 disabled:opacity-50 disabled:pointer-events-none;
+  }
+  .btn-accent {
+    @apply btn bg-accent text-accent-fg hover:brightness-110 active:brightness-95 shadow-glow;
+  }
+  .btn-ghost {
+    @apply btn border border-border bg-surface-2/60 text-fg hover:bg-surface-2;
+  }
+  .btn-soft {
+    @apply btn bg-surface-2 text-fg hover:bg-border/60;
+  }
+  .input {
+    @apply w-full rounded-xl border border-border bg-surface-2/60 px-3.5 py-2.5 text-sm text-fg placeholder:text-muted/70 outline-none focus:border-accent/70 focus:ring-2 focus:ring-accent/20 transition;
+  }
+  .label {
+    @apply block text-xs font-medium uppercase tracking-wider text-muted mb-1.5;
+  }
+  .pill {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium;
+  }
+  .stat-value {
+    @apply font-display text-3xl font-bold tracking-tight;
+  }
+}
