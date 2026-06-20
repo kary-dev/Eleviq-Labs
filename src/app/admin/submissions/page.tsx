@@ -1,5 +1,5 @@
+import { Suspense } from "react";
 import Link from "next/link";
-import { prisma } from "@/lib/prisma";
 import { PageHeader, EmptyState, StatusPill } from "@/components/ui";
 import { AdminReviewCard } from "@/components/AdminReviewCard";
 import { DisputeRow } from "@/components/DisputeRow";
@@ -7,60 +7,37 @@ import { BulkRefreshButton } from "@/components/BulkRefreshButton";
 import { SubmissionCampaignFilter } from "@/components/SubmissionCampaignFilter";
 import { PLATFORMS, PlatformKey } from "@/lib/platforms";
 import { money, compact, date } from "@/lib/format";
+import { getAdminSubmissions, getAdminCampaignsList } from "@/lib/queries";
 
 const TABS = ["PENDING", "APPROVED", "REJECTED", "DISPUTED"] as const;
 
-export default async function AdminSubmissions({
-  searchParams,
+async function SubmissionsContent({
+  status,
+  campaignId,
 }: {
-  searchParams: Promise<{ status?: string; campaignId?: string }>;
+  status: (typeof TABS)[number];
+  campaignId?: string;
 }) {
-  const { status, campaignId } = await searchParams;
-  const active = (TABS.includes(status as any) ? status : "PENDING") as (typeof TABS)[number];
-
   const [subs, campaigns] = await Promise.all([
-    prisma.submission.findMany({
-      where: {
-        ...(active === "DISPUTED" ? { viewsDisputed: true } : { status: active }),
-        ...(campaignId ? { campaignId } : {}),
-      },
-      include: {
-        campaign: { select: { title: true, brand: true, ratePerThousand: true } },
-        user: { select: { name: true, email: true, image: true } },
-      },
-      orderBy: { createdAt: "desc" },
-    }),
-    prisma.campaign.findMany({ select: { id: true, title: true, brand: true }, orderBy: { createdAt: "desc" } }),
+    getAdminSubmissions(status, campaignId),
+    getAdminCampaignsList(),
   ]);
 
   return (
     <>
-      <PageHeader
-        title="Submissions"
-        subtitle="Every clip submitted across all campaigns."
-        action={<BulkRefreshButton />}
-      />
-
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        {TABS.map((t) => (
-          <Link key={t} href={`/admin/submissions?status=${t}${campaignId ? `&campaignId=${campaignId}` : ""}`} className={`btn ${active === t ? "btn-accent" : "btn-ghost"}`}>
-            {t.charAt(0) + t.slice(1).toLowerCase()}
-          </Link>
-        ))}
-      </div>
       <div className="mb-6">
         <SubmissionCampaignFilter campaigns={campaigns} />
       </div>
 
       {subs.length === 0 ? (
-        <EmptyState title={`No ${active.toLowerCase()} submissions`} />
-      ) : active === "PENDING" ? (
+        <EmptyState title={`No ${status.toLowerCase()} submissions`} />
+      ) : status === "PENDING" ? (
         <div className="grid gap-5 md:grid-cols-2">
           {subs.map((s) => (
             <AdminReviewCard key={s.id} sub={s} />
           ))}
         </div>
-      ) : active === "DISPUTED" ? (
+      ) : status === "DISPUTED" ? (
         <div className="space-y-3">
           {subs.map((s) => (
             <DisputeRow
@@ -109,6 +86,57 @@ export default async function AdminSubmissions({
           })}
         </div>
       )}
+    </>
+  );
+}
+
+function SubmissionsSkeleton() {
+  return (
+    <div className="animate-pulse">
+      <div className="mb-6 h-10 w-56 rounded-xl bg-surface-2" />
+      <div className="grid gap-5 md:grid-cols-2">
+        {[...Array(6)].map((_, i) => (
+          <div key={i} className="card p-5">
+            <div className="mb-3 h-5 w-3/4 rounded bg-surface-2" />
+            <div className="h-4 w-1/2 rounded bg-surface-2" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export default async function AdminSubmissions({
+  searchParams,
+}: {
+  searchParams: Promise<{ status?: string; campaignId?: string }>;
+}) {
+  const { status, campaignId } = await searchParams;
+  const active = (TABS.includes(status as any) ? status : "PENDING") as (typeof TABS)[number];
+
+  return (
+    <>
+      <PageHeader
+        title="Submissions"
+        subtitle="Every clip submitted across all campaigns."
+        action={<BulkRefreshButton />}
+      />
+
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        {TABS.map((t) => (
+          <Link
+            key={t}
+            href={`/admin/submissions?status=${t}${campaignId ? `&campaignId=${campaignId}` : ""}`}
+            className={`btn ${active === t ? "btn-accent" : "btn-ghost"}`}
+          >
+            {t.charAt(0) + t.slice(1).toLowerCase()}
+          </Link>
+        ))}
+      </div>
+
+      <Suspense key={`${active}-${campaignId}`} fallback={<SubmissionsSkeleton />}>
+        <SubmissionsContent status={active} campaignId={campaignId} />
+      </Suspense>
     </>
   );
 }

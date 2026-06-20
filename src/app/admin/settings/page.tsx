@@ -1,6 +1,6 @@
 import { requireAdmin } from "@/lib/session";
 import { PageHeader } from "@/components/ui";
-import { getSiteSettings } from "@/app/admin/actions";
+import { getSiteSettings } from "@/lib/queries";
 import { DemographicsToggleForm } from "@/components/DemographicsToggleForm";
 
 export default async function AdminSettingsPage() {
@@ -19,7 +19,7 @@ export default async function AdminSettingsPage() {
               When enabled, creators see the Demographic Verification page and can submit audience screenshots for review.
             </p>
           </div>
-          <DemographicsToggleForm enabled={settings.demographicVerificationEnabled} />
+          <DemographicsToggleForm enabled={settings?.demographicVerificationEnabled ?? false} />
         </div>
       </div>
     </>

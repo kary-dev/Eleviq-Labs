@@ -1,17 +1,15 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
-import { prisma } from "@/lib/prisma";
 import { Sidebar } from "@/components/Sidebar";
 import { AdminTopBar } from "@/components/AdminTopBar";
+import { cachedUnreadCount } from "@/lib/queries";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
   if (!session?.user) redirect("/auth");
   if (session.user.role !== "ADMIN") redirect("/dashboard");
 
-  const unreadCount = await prisma.notification.count({
-    where: { userId: session.user.id!, read: false },
-  });
+  const unreadCount = await cachedUnreadCount(session.user.id!)();
 
   return (
     <div className="min-h-screen lg:pl-72">

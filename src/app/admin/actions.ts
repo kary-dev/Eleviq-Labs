@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { estPayout } from "@/lib/format";
@@ -14,6 +14,8 @@ function revalidateAdmin() {
   revalidatePath("/admin");
   revalidatePath("/admin/submissions");
   revalidatePath("/admin/creators");
+  revalidateTag("admin-submissions");
+  revalidateTag("admin-stats");
 }
 
 async function createNotification(
@@ -177,6 +179,8 @@ export async function markPayoutPaid(id: string) {
 
   revalidatePath("/admin/creators");
   revalidatePath("/admin");
+  revalidateTag("admin-payouts");
+  revalidateTag("admin-stats");
 }
 
 export async function reviewProof(id: string, status: "APPROVED" | "REJECTED") {
@@ -206,6 +210,8 @@ export async function approveDemographicProof(id: string) {
   }
   revalidatePath("/admin/demographics");
   revalidatePath("/demographics");
+  revalidateTag("admin-demographics");
+  if (proof) revalidateTag(`demographics-${proof.userId}`);
 }
 
 export async function rejectDemographicProof(id: string) {
@@ -229,6 +235,8 @@ export async function rejectDemographicProof(id: string) {
   }
   revalidatePath("/admin/demographics");
   revalidatePath("/demographics");
+  revalidateTag("admin-demographics");
+  if (proof) revalidateTag(`demographics-${proof.userId}`);
 }
 
 export async function approveAccount(id: string) {
@@ -253,6 +261,8 @@ export async function approveAccount(id: string) {
   revalidatePath("/admin/accounts");
   revalidatePath("/social");
   revalidatePath("/dashboard");
+  revalidateTag("admin-accounts");
+  if (acct) revalidateTag(`social-${acct.userId}`);
 }
 
 export async function rejectAccount(id: string) {
@@ -276,6 +286,8 @@ export async function rejectAccount(id: string) {
   }
   revalidatePath("/admin/accounts");
   revalidatePath("/social");
+  revalidateTag("admin-accounts");
+  if (acct) revalidateTag(`social-${acct.userId}`);
 }
 
 function parseCampaignFormData(formData: FormData, platforms: string[]) {
@@ -317,6 +329,8 @@ export async function createCampaign(formData: FormData) {
 
   revalidatePath("/admin/campaigns");
   revalidatePath("/dashboard");
+  revalidateTag("admin-campaigns");
+  revalidateTag("campaigns");
 }
 
 export async function setCampaignStatus(id: string, status: "ACTIVE" | "ENDED" | "DRAFT") {
@@ -324,6 +338,8 @@ export async function setCampaignStatus(id: string, status: "ACTIVE" | "ENDED" |
   await prisma.campaign.update({ where: { id }, data: { status, ...(status === "ACTIVE" ? { budgetPaused: false } : {}) } });
   revalidatePath("/admin/campaigns");
   revalidatePath("/dashboard");
+  revalidateTag("admin-campaigns");
+  revalidateTag("campaigns");
 }
 
 export async function updateCampaign(id: string, formData: FormData) {
@@ -336,6 +352,8 @@ export async function updateCampaign(id: string, formData: FormData) {
   revalidatePath("/admin/campaigns");
   revalidatePath(`/admin/campaigns/${id}`);
   revalidatePath("/dashboard");
+  revalidateTag("admin-campaigns");
+  revalidateTag("campaigns");
 }
 
 // --- Bulk clip refresh -------------------------------------------------------
@@ -390,12 +408,14 @@ export async function blockCreator(userId: string) {
   await ensureAdmin();
   await prisma.user.update({ where: { id: userId }, data: { banned: true, bannedAt: new Date() } });
   revalidatePath("/admin/creators");
+  revalidateTag("admin-creators");
 }
 
 export async function unblockCreator(userId: string) {
   await ensureAdmin();
   await prisma.user.update({ where: { id: userId }, data: { banned: false, bannedAt: null } });
   revalidatePath("/admin/creators");
+  revalidateTag("admin-creators");
 }
 
 // --- Payout requests ---------------------------------------------------------
@@ -414,6 +434,7 @@ export async function approvePayoutRequest(id: string) {
     "/earnings"
   );
   revalidatePath("/admin/payouts");
+  revalidateTag("admin-payouts");
 }
 
 export async function rejectPayoutRequest(id: string, note: string) {
@@ -430,6 +451,7 @@ export async function rejectPayoutRequest(id: string, note: string) {
     "/earnings"
   );
   revalidatePath("/admin/payouts");
+  revalidateTag("admin-payouts");
 }
 
 export async function markPayoutRequestPaid(id: string) {
@@ -464,6 +486,9 @@ export async function markPayoutRequestPaid(id: string) {
   revalidatePath("/admin/payouts");
   revalidatePath("/earnings");
   revalidatePath("/dashboard");
+  revalidateTag("admin-payouts");
+  revalidateTag("admin-stats");
+  revalidateTag(`submissions-${req.userId}`);
 }
 
 // --- Site settings ----------------------------------------------------------
@@ -485,4 +510,5 @@ export async function setSiteSettings(data: { demographicVerificationEnabled?: b
   });
   revalidatePath("/admin/settings");
   revalidatePath("/demographics");
+  revalidateTag("site-settings");
 }
