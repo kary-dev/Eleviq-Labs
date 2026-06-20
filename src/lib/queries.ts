@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
 
@@ -91,3 +92,19 @@ export const cachedUserDemographicProofs = (userId: string) =>
     [`demo-proofs-${userId}`],
     { revalidate: 60, tags: [`demographics-${userId}`] }
   );
+
+// Notification badge count — short TTL, invalidated when notifications are read
+export const cachedUnreadCount = (userId: string) =>
+  unstable_cache(
+    async () => prisma.notification.count({ where: { userId, read: false } }),
+    [`unread-count-${userId}`],
+    { revalidate: 30, tags: [`notifications-${userId}`] }
+  );
+
+// ── Per-request deduplication ─────────────────────────────────────────────────
+// React cache() ensures multiple Suspense components in one render share the
+// same promise instead of triggering separate unstable_cache lookups.
+
+export const getSubmissions = cache((userId: string) =>
+  cachedUserSubmissions(userId)()
+);

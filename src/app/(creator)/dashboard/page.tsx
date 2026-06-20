@@ -9,7 +9,7 @@ import { DiscordIcon } from "@/components/icons";
 import { money, compact, payoutProgress } from "@/lib/format";
 import {
   getActiveCampaigns,
-  cachedUserSubmissions,
+  getSubmissions,
   cachedUserParticipations,
   cachedUserPaidAgg,
 } from "@/lib/queries";
@@ -21,7 +21,7 @@ export const maxDuration = 60;
 
 async function DashboardStats({ userId }: { userId: string }) {
   const [submissions, paidAgg] = await Promise.all([
-    cachedUserSubmissions(userId)(),
+    getSubmissions(userId),
     cachedUserPaidAgg(userId)(),
   ]);
   const approved = submissions.filter((s) => s.status === "APPROVED");
@@ -77,7 +77,7 @@ async function ActiveCampaignsSection({ userId }: { userId: string }) {
 }
 
 async function RecentClipsSection({ userId }: { userId: string }) {
-  const submissions = await cachedUserSubmissions(userId)();
+  const submissions = await getSubmissions(userId);
 
   return (
     <section>

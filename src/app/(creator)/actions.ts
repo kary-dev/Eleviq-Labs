@@ -391,12 +391,14 @@ export async function markAllNotificationsRead() {
   const userId = await uid();
   await prisma.notification.updateMany({ where: { userId, read: false }, data: { read: true } });
   revalidatePath("/notifications");
+  revalidateTag(`notifications-${userId}`);
 }
 
 export async function markNotificationRead(id: string) {
   const userId = await uid();
   await prisma.notification.updateMany({ where: { id, userId }, data: { read: true } });
   revalidatePath("/notifications");
+  revalidateTag(`notifications-${userId}`);
 }
 
 // --- Leaderboard opt-in -----------------------------------------------------
