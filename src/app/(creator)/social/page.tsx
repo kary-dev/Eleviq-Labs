@@ -1,17 +1,14 @@
 import { requireUser } from "@/lib/session";
-import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/ui";
 import { SocialVerifyWizard } from "@/components/SocialVerifyWizard";
+import { cachedUserSocialAccounts } from "@/lib/queries";
 
 // Instagram scraping (Apify sync runs) can take longer than the default limit.
 export const maxDuration = 60;
 
 export default async function SocialPage() {
   const user = await requireUser();
-  const accounts = await prisma.socialAccount.findMany({
-    where: { userId: user.id, verificationStatus: { in: ["PENDING_REVIEW", "APPROVED"] } },
-    orderBy: { createdAt: "desc" },
-  });
+  const accounts = await cachedUserSocialAccounts(user.id)();
 
   return (
     <>

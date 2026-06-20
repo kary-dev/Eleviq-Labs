@@ -3,33 +3,27 @@ import { prisma } from "@/lib/prisma";
 import { PageHeader, EmptyState } from "@/components/ui";
 import { DemographicsAccountSection } from "@/components/DemographicsAccountSection";
 import { ChartIcon, CheckIcon } from "@/components/icons";
+import {
+  getSiteSettings,
+  cachedUserSocialAccountsForDemo,
+  cachedUserDemographicProofs,
+} from "@/lib/queries";
 
 export default async function DemographicsPage() {
   const user = await requireUser();
 
-  const [settings, accounts, proofs] = await Promise.all([
-    prisma.siteSettings.upsert({
-      where: { id: "singleton" },
-      update: {},
-      create: { id: "singleton", demographicVerificationEnabled: false },
-    }),
-    prisma.socialAccount.findMany({
-      where: { userId: user.id, verificationStatus: { not: "NONE" } },
-      orderBy: { createdAt: "asc" },
-      select: {
-        id: true,
-        platform: true,
-        handle: true,
-        followers: true,
-        verificationStatus: true,
-      },
-    }),
-    prisma.demographicProof.findMany({
-      where: { userId: user.id },
-      orderBy: { createdAt: "desc" },
-      select: { socialAccountId: true, status: true, method: true },
-    }),
+  const [settingsOrNull, accounts, proofs] = await Promise.all([
+    getSiteSettings(),
+    cachedUserSocialAccountsForDemo(user.id)(),
+    cachedUserDemographicProofs(user.id)(),
   ]);
+
+  // Create singleton on first visit if it doesn't exist yet
+  const settings =
+    settingsOrNull ??
+    (await prisma.siteSettings.create({
+      data: { id: "singleton", demographicVerificationEnabled: false },
+    }));
 
   // Latest proof per socialAccountId
   const proofMap: Record<string, { status: string; method: string | null }> = {};

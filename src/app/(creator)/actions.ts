@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { estPayout } from "@/lib/format";
@@ -37,6 +37,8 @@ export async function joinCampaign(campaignId: string) {
   });
   revalidatePath("/campaigns");
   revalidatePath("/dashboard");
+  revalidateTag("campaigns");
+  revalidateTag(`participations-${userId}`);
 }
 
 export type ClipPreview = {
@@ -200,6 +202,9 @@ export async function addClip(formData: FormData): Promise<AddClipResult> {
   revalidatePath("/dashboard");
   revalidatePath("/campaigns");
   revalidatePath("/earnings");
+  revalidateTag(`submissions-${userId}`);
+  revalidateTag(`participations-${userId}`);
+  revalidateTag("campaigns");
   notifyAdmins("clip_submitted", "New clip submitted", `A creator submitted a clip for review.`, "/admin/submissions").catch(() => {});
   return { ok: true };
 }
@@ -231,6 +236,7 @@ export async function requestViewRecheck(formData: FormData): Promise<{ ok: bool
   });
   revalidatePath("/campaigns");
   revalidatePath("/dashboard");
+  revalidateTag(`submissions-${userId}`);
   return { ok: true, message: "Sent to admin for a recheck." };
 }
 
@@ -293,6 +299,7 @@ export async function refreshClipViews(submissionId: string) {
 
   revalidatePath("/dashboard");
   revalidatePath("/earnings");
+  revalidateTag(`submissions-${userId}`);
 }
 
 /** Re-fetches live views for all of the user's clips in a campaign. */
@@ -351,6 +358,8 @@ export async function refreshCampaignClips(campaignId: string) {
   revalidatePath("/campaigns");
   revalidatePath("/dashboard");
   revalidatePath("/earnings");
+  revalidateTag(`submissions-${userId}`);
+  revalidateTag("campaigns");
 }
 
 // --- Payout requests --------------------------------------------------------
@@ -413,6 +422,7 @@ export async function verifyAccount(formData: FormData) {
   });
   if (existing) {
     revalidatePath("/social");
+    revalidateTag(`social-${userId}`);
     return;
   }
 
@@ -422,12 +432,14 @@ export async function verifyAccount(formData: FormData) {
   });
   revalidatePath("/social");
   revalidatePath("/dashboard");
+  revalidateTag(`social-${userId}`);
 }
 
 export async function removeSocial(id: string) {
   const userId = await uid();
   await prisma.socialAccount.deleteMany({ where: { id, userId } });
   revalidatePath("/social");
+  revalidateTag(`social-${userId}`);
 }
 
 // --- Bio-code verification (Instagram / YouTube / TikTok) -------------------
@@ -509,6 +521,7 @@ export async function startVerification(formData: FormData): Promise<StartVerify
   registerMockBio(platform, handle, code);
 
   revalidatePath("/social");
+  revalidateTag(`social-${userId}`);
   return {
     ok: true, accountId: acct.id, code, handle, platform,
     isProfessional: profile.isProfessional, avatarUrl: profile.avatarUrl, followers: profile.followers,
@@ -553,6 +566,7 @@ export async function checkVerification(socialAccountId: string): Promise<{ ok: 
 
   revalidatePath("/social");
   revalidatePath("/dashboard");
+  revalidateTag(`social-${userId}`);
   notifyAdmins("account_pending", "New account for review", `A creator's ${label} account is awaiting verification.`, "/admin/accounts").catch(() => {});
   return { ok: true, message: `${label} account sent for admin review. You can submit clips once it's approved.` };
 }
@@ -569,6 +583,7 @@ export async function submitProof(formData: FormData) {
     data: { userId, campaignId, submissionId, imageUrl, note, status: "PENDING" },
   });
   revalidatePath("/demographics");
+  revalidateTag(`demographics-${userId}`);
 }
 
 // --- Demographic verification -----------------------------------------------
@@ -626,6 +641,7 @@ export async function submitDemographicProof(formData: FormData): Promise<Submit
   });
 
   revalidatePath("/demographics");
+  revalidateTag(`demographics-${userId}`);
   notifyAdmins("proof_pending", "New demographic proof", "A creator submitted a demographic proof for review.", "/admin/demographics").catch(() => {});
   return { ok: true };
 }

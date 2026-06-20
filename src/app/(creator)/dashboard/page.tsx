@@ -1,5 +1,4 @@
 import { requireUser } from "@/lib/session";
-import { prisma } from "@/lib/prisma";
 import { StatCard, EmptyState } from "@/components/ui";
 import { CampaignSearch } from "@/components/CampaignSearch";
 import { SubmissionRow } from "@/components/SubmissionRow";
@@ -7,6 +6,12 @@ import { ReportViewsButton } from "@/components/ReportViewsButton";
 import { ReferralAutoApply } from "@/components/ReferralAutoApply";
 import { DiscordIcon } from "@/components/icons";
 import { money, compact, payoutProgress } from "@/lib/format";
+import {
+  getActiveCampaigns,
+  cachedUserSubmissions,
+  cachedUserParticipations,
+  cachedUserPaidAgg,
+} from "@/lib/queries";
 
 // addClip re-fetches the post via Instagram scraping, which can be slow.
 export const maxDuration = 60;
@@ -19,17 +24,10 @@ export default async function DashboardPage({
   const [user, { ref }] = await Promise.all([requireUser(), searchParams]);
 
   const [activeCampaigns, submissions, participations, paidAgg] = await Promise.all([
-    prisma.campaign.findMany({ where: { status: "ACTIVE" }, orderBy: { createdAt: "desc" } }),
-    prisma.submission.findMany({
-      where: { userId: user.id },
-      include: { campaign: { select: { title: true, brand: true } } },
-      orderBy: { createdAt: "desc" },
-    }),
-    prisma.participation.findMany({ where: { userId: user.id }, select: { campaignId: true } }),
-    prisma.submission.aggregate({
-      where: { userId: user.id, status: "APPROVED" },
-      _sum: { payout: true, views: true },
-    }),
+    getActiveCampaigns(),
+    cachedUserSubmissions(user.id)(),
+    cachedUserParticipations(user.id)(),
+    cachedUserPaidAgg(user.id)(),
   ]);
 
   const joinedIds = new Set(participations.map((p) => p.campaignId));
