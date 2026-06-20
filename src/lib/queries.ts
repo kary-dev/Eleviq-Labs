@@ -185,6 +185,13 @@ export const cachedUserReferrals = (userId: string) =>
     { revalidate: 120, tags: [`referrals-${userId}`, `submissions-${userId}`] }
   );
 
+export const cachedCampaign = (id: string) =>
+  unstable_cache(
+    async () => prisma.campaign.findUnique({ where: { id } }),
+    [`campaign-${id}`],
+    { revalidate: 60, tags: [`campaign-${id}`, "campaigns"] }
+  );
+
 // ── Admin queries (global, not per-user) ──────────────────────────────────────
 
 export const getAdminStats = unstable_cache(
