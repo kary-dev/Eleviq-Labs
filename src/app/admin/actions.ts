@@ -144,36 +144,33 @@ export async function updateViews(id: string, views: number) {
   await ensureAdmin();
   const sub = await prisma.submission.findUnique({ where: { id }, include: { campaign: true } });
   if (!sub) return;
-  await prisma.submission.update({
-    where: { id },
-    data: {
-      views,
-      payout: sub.status === "APPROVED" ? estPayout(views, sub.campaign.ratePerThousand) : sub.payout,
-      viewsDisputed: false, claimedViews: null, disputeNote: null,
-    },
-  });
-  await createNotification(
-    sub.userId,
-    "views_updated",
-    "View count updated",
-    `Your view count for "${sub.campaign.brand} — ${sub.campaign.title}" was corrected to ${views.toLocaleString()} views.`,
-    `/campaigns/${sub.campaignId}`
-  );
+  await Promise.all([
+    prisma.submission.update({
+      where: { id },
+      data: {
+        views,
+        payout: sub.status === "APPROVED" ? estPayout(views, sub.campaign.ratePerThousand) : sub.payout,
+        viewsDisputed: false, claimedViews: null, disputeNote: null,
+      },
+    }),
+    createNotification(
+      sub.userId,
+      "views_updated",
+      "View count updated",
+      `Your view count for "${sub.campaign.brand} — ${sub.campaign.title}" was corrected to ${views.toLocaleString()} views.`,
+      `/campaigns/${sub.campaignId}`
+    ),
+  ]);
   revalidateTag(`submissions-${sub.userId}`);
-  revalidateTag(`notifications-${sub.userId}`);
   revalidateAdmin();
 }
 
 export async function resolveViewDispute(id: string) {
   await ensureAdmin();
-  const sub = await prisma.submission.findUnique({
-    where: { id },
-    include: { campaign: { select: { brand: true, title: true, id: true } } },
-  });
-  if (!sub) return;
-  await prisma.submission.update({
+  const sub = await prisma.submission.update({
     where: { id },
     data: { viewsDisputed: false, claimedViews: null, disputeNote: null },
+    include: { campaign: { select: { brand: true, title: true, id: true } } },
   });
   await createNotification(
     sub.userId,
@@ -183,32 +180,30 @@ export async function resolveViewDispute(id: string) {
     `/campaigns/${sub.campaign.id}`
   );
   revalidateTag(`submissions-${sub.userId}`);
-  revalidateTag(`notifications-${sub.userId}`);
   revalidateAdmin();
 }
 
 export async function markPayoutPaid(id: string) {
   await ensureAdmin();
-  await prisma.payout.update({ where: { id }, data: { status: "PAID", paidAt: new Date() } });
-
-  const payout = await prisma.payout.findUnique({ where: { id }, select: { userId: true, amount: true } });
-  if (payout) {
-    await createNotification(
+  const payout = await prisma.payout.update({
+    where: { id },
+    data: { status: "PAID", paidAt: new Date() },
+    select: { userId: true, amount: true },
+  });
+  await Promise.all([
+    createNotification(
       payout.userId,
       "payout_sent",
       "Payout sent!",
       `$${payout.amount.toFixed(2)} has been sent to your bank account.`,
       "/earnings"
-    );
-    // Mark all linked submissions as paid
-    await prisma.submission.updateMany({
+    ),
+    prisma.submission.updateMany({
       where: { userId: payout.userId, status: "APPROVED", paidAt: null },
       data: { paidAt: new Date() },
-    });
-  }
-
-  revalidatePath("/admin/creators");
-  revalidatePath("/admin");
+    }),
+  ]);
+  revalidateTag(`submissions-${payout.userId}`);
   revalidateTag("admin-payouts");
   revalidateTag("admin-stats");
 }
@@ -221,103 +216,74 @@ export async function reviewProof(id: string, status: "APPROVED" | "REJECTED") {
 
 export async function approveDemographicProof(id: string) {
   await ensureAdmin();
-  const proof = await prisma.demographicProof.findUnique({
-    where: { id },
-    select: { userId: true },
-  });
-  await prisma.demographicProof.update({
+  const proof = await prisma.demographicProof.update({
     where: { id },
     data: { status: "APPROVED", approvedByAdminAt: new Date() },
+    select: { userId: true },
   });
-  if (proof) {
-    await createNotification(
-      proof.userId,
-      "proof_approved",
-      "Demographics approved!",
-      "Your demographic verification was approved. You're now eligible for bonus payouts.",
-      "/demographics"
-    );
-  }
-  revalidatePath("/admin/demographics");
-  revalidatePath("/demographics");
+  await createNotification(
+    proof.userId,
+    "proof_approved",
+    "Demographics approved!",
+    "Your demographic verification was approved. You're now eligible for bonus payouts.",
+    "/demographics"
+  );
   revalidateTag("admin-demographics");
-  if (proof) revalidateTag(`demographics-${proof.userId}`);
+  revalidateTag(`demographics-${proof.userId}`);
 }
 
 export async function rejectDemographicProof(id: string) {
   await ensureAdmin();
-  const proof = await prisma.demographicProof.findUnique({
-    where: { id },
-    select: { userId: true },
-  });
-  await prisma.demographicProof.update({
+  const proof = await prisma.demographicProof.update({
     where: { id },
     data: { status: "REJECTED" },
+    select: { userId: true },
   });
-  if (proof) {
-    await createNotification(
-      proof.userId,
-      "proof_rejected",
-      "Demographics rejected",
-      "Your demographic proof was rejected. Please resubmit with a clearer screenshot.",
-      "/demographics"
-    );
-  }
-  revalidatePath("/admin/demographics");
-  revalidatePath("/demographics");
+  await createNotification(
+    proof.userId,
+    "proof_rejected",
+    "Demographics rejected",
+    "Your demographic proof was rejected. Please resubmit with a clearer screenshot.",
+    "/demographics"
+  );
   revalidateTag("admin-demographics");
-  if (proof) revalidateTag(`demographics-${proof.userId}`);
+  revalidateTag(`demographics-${proof.userId}`);
 }
 
 export async function approveAccount(id: string) {
   await ensureAdmin();
-  const acct = await prisma.socialAccount.findUnique({
-    where: { id },
-    select: { userId: true, platform: true, handle: true },
-  });
-  await prisma.socialAccount.update({
+  const acct = await prisma.socialAccount.update({
     where: { id },
     data: { verificationStatus: "APPROVED", verified: true, verifiedAt: new Date() },
+    select: { userId: true, platform: true, handle: true },
   });
-  if (acct) {
-    await createNotification(
-      acct.userId,
-      "account_approved",
-      "Account verified!",
-      `@${acct.handle} on ${acct.platform} has been approved. You can now submit clips.`,
-      "/social"
-    );
-  }
-  revalidatePath("/admin/accounts");
-  revalidatePath("/social");
-  revalidatePath("/dashboard");
+  await createNotification(
+    acct.userId,
+    "account_approved",
+    "Account verified!",
+    `@${acct.handle} on ${acct.platform} has been approved. You can now submit clips.`,
+    "/social"
+  );
   revalidateTag("admin-accounts");
-  if (acct) revalidateTag(`social-${acct.userId}`);
+  revalidateTag(`social-${acct.userId}`);
 }
 
 export async function rejectAccount(id: string) {
   await ensureAdmin();
-  const acct = await prisma.socialAccount.findUnique({
-    where: { id },
-    select: { userId: true, platform: true, handle: true },
-  });
-  await prisma.socialAccount.update({
+  const acct = await prisma.socialAccount.update({
     where: { id },
     data: { verificationStatus: "REJECTED", verified: false },
+    select: { userId: true, platform: true, handle: true },
   });
-  if (acct) {
-    await createNotification(
-      acct.userId,
-      "account_rejected",
-      "Account verification rejected",
-      `@${acct.handle} on ${acct.platform} was rejected. Contact support if you think this is a mistake.`,
-      "/social"
-    );
-  }
-  revalidatePath("/admin/accounts");
-  revalidatePath("/social");
+  await createNotification(
+    acct.userId,
+    "account_rejected",
+    "Account verification rejected",
+    `@${acct.handle} on ${acct.platform} was rejected. Contact support if you think this is a mistake.`,
+    "/social"
+  );
   revalidateTag("admin-accounts");
-  if (acct) revalidateTag(`social-${acct.userId}`);
+  revalidateTag(`social-${acct.userId}`);
 }
 
 function parseCampaignFormData(formData: FormData, platforms: string[]) {
