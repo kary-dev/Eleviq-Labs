@@ -55,6 +55,7 @@ export function Sidebar({
           <Link
             key={href}
             href={href}
+            prefetch={true}
             onClick={() => setOpen(false)}
             className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
               active ? "bg-accent/15 text-accent ring-1 ring-accent/25" : "text-muted hover:bg-surface-2 hover:text-fg"
