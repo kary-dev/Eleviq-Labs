@@ -1,42 +1,39 @@
+import { Suspense } from "react";
 import { requireUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { PageHeader, StatCard, EmptyState, StatusPill } from "@/components/ui";
 import { SubmissionRow } from "@/components/SubmissionRow";
 import { ReportViewsButton } from "@/components/ReportViewsButton";
 import { PayoutRequestButton } from "@/components/PayoutRequestButton";
-import { money, compact, date, payoutProgress, PAYOUT_VIEW_THRESHOLD } from "@/lib/format";
+import { money, date, payoutProgress, PAYOUT_VIEW_THRESHOLD } from "@/lib/format";
 import { WalletIcon } from "@/components/icons";
 
-export default async function EarningsPage() {
-  const user = await requireUser();
-
+async function EarningsContent({ userId }: { userId: string }) {
   const [approved, pendingSubs, payoutRequests, activePayoutReq] = await Promise.all([
     prisma.submission.findMany({
-      where: { userId: user.id, status: "APPROVED" },
+      where: { userId, status: "APPROVED" },
       include: { campaign: { select: { title: true, brand: true, ratePerThousand: true } } },
       orderBy: { reviewedAt: "desc" },
     }),
     prisma.submission.aggregate({
-      where: { userId: user.id, status: "PENDING" },
+      where: { userId, status: "PENDING" },
       _sum: { payout: true },
       _count: true,
     }),
-    prisma.payoutRequest.findMany({ where: { userId: user.id }, orderBy: { createdAt: "desc" } }),
+    prisma.payoutRequest.findMany({ where: { userId }, orderBy: { createdAt: "desc" } }),
     prisma.payoutRequest.findFirst({
-      where: { userId: user.id, status: { in: ["PENDING", "APPROVED"] } },
+      where: { userId, status: { in: ["PENDING", "APPROVED"] } },
       orderBy: { createdAt: "desc" },
     }),
   ]);
 
   const paid = payoutRequests.filter((p) => p.status === "PAID").reduce((a, p) => a + p.amount, 0);
 
-  // Eligibility: total approved views MINUS views already included in a paid payout.
   const totalViews = approved.reduce((a, s) => a + s.views, 0);
   const paidViews = approved.filter((s) => s.paidAt).reduce((a, s) => a + s.views, 0);
   const elig = payoutProgress(totalViews - paidViews);
 
   // Available = live views × campaign rate for clips not yet paid out.
-  // Uses current view counts (not the stale payout field set at approval time).
   const unpaidEarned = approved
     .filter((s) => !s.paidAt)
     .reduce((a, s) => a + (s.views / 1000) * s.campaign.ratePerThousand, 0);
@@ -45,8 +42,6 @@ export default async function EarningsPage() {
 
   return (
     <>
-      <PageHeader title="Earnings" subtitle="Your payouts across all campaigns — past and pending." />
-
       <div className="mb-9 grid gap-4 sm:grid-cols-3">
         <StatCard label="Total Paid Out" value={money(paid)} hint="Lifetime withdrawals" />
         <StatCard
@@ -78,7 +73,6 @@ export default async function EarningsPage() {
         </div>
       )}
 
-      {/* Payout eligibility — total views across the account must reach 20,000 */}
       <section className="mb-9">
         <div className="card p-5">
           <div className="mb-1 flex items-center justify-between gap-3">
@@ -110,7 +104,6 @@ export default async function EarningsPage() {
         </div>
       </section>
 
-      {/* Payout history */}
       <section className="mb-9">
         <h2 className="mb-4 font-display text-lg font-bold">Payout history</h2>
         {payoutRequests.length === 0 ? (
@@ -136,7 +129,6 @@ export default async function EarningsPage() {
         )}
       </section>
 
-      {/* Approved clips breakdown */}
       <section>
         <h2 className="mb-4 font-display text-lg font-bold">Approved clips</h2>
         {approved.length === 0 ? (
@@ -162,6 +154,41 @@ export default async function EarningsPage() {
           </div>
         )}
       </section>
+    </>
+  );
+}
+
+function EarningsSkeleton() {
+  return (
+    <>
+      <div className="mb-9 grid gap-4 sm:grid-cols-3">
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="card p-5">
+            <div className="mb-3 h-3 w-20 animate-pulse rounded bg-surface-2" />
+            <div className="mb-2 h-8 w-24 animate-pulse rounded bg-surface-2" />
+            <div className="h-3 w-32 animate-pulse rounded bg-surface-2" />
+          </div>
+        ))}
+      </div>
+      <section className="mb-9">
+        <div className="card p-5">
+          <div className="mb-4 h-6 w-40 animate-pulse rounded bg-surface-2" />
+          <div className="h-2.5 w-full animate-pulse rounded-full bg-surface-2" />
+        </div>
+      </section>
+    </>
+  );
+}
+
+export default async function EarningsPage() {
+  const user = await requireUser();
+
+  return (
+    <>
+      <PageHeader title="Earnings" subtitle="Your payouts across all campaigns — past and pending." />
+      <Suspense fallback={<EarningsSkeleton />}>
+        <EarningsContent userId={user.id!} />
+      </Suspense>
     </>
   );
 }

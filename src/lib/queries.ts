@@ -110,6 +110,81 @@ export const getSubmissions = cache((userId: string) =>
   cachedUserSubmissions(userId)()
 );
 
+// ── Creator page queries ──────────────────────────────────────────────────────
+
+export const cachedUserCampaigns = (userId: string) =>
+  unstable_cache(
+    async () =>
+      prisma.participation.findMany({
+        where: { userId },
+        include: { campaign: true },
+        orderBy: { createdAt: "desc" },
+      }),
+    [`campaigns-full-${userId}`],
+    { revalidate: 60, tags: [`participations-${userId}`, "campaigns"] }
+  );
+
+export const getLeaderboard = unstable_cache(
+  async () =>
+    prisma.user.findMany({
+      where: { role: "CREATOR", leaderboardOptIn: true, banned: false },
+      select: {
+        id: true,
+        name: true,
+        image: true,
+        tier: true,
+        submissions: { where: { status: "APPROVED" }, select: { views: true, payout: true } },
+      },
+      orderBy: { createdAt: "asc" },
+    }),
+  ["leaderboard"],
+  { revalidate: 120, tags: ["leaderboard", "admin-creators"] }
+);
+
+export const cachedUserNotifications = (userId: string) =>
+  unstable_cache(
+    async () =>
+      prisma.notification.findMany({
+        where: { userId },
+        orderBy: { createdAt: "desc" },
+        take: 100,
+      }),
+    [`notifications-list-${userId}`],
+    { revalidate: 30, tags: [`notifications-${userId}`] }
+  );
+
+export const cachedUserBank = (userId: string) =>
+  unstable_cache(
+    async () => prisma.bankAccount.findUnique({ where: { userId } }),
+    [`bank-${userId}`],
+    { revalidate: 300, tags: [`bank-${userId}`] }
+  );
+
+export const cachedUserReferrals = (userId: string) =>
+  unstable_cache(
+    async () =>
+      Promise.all([
+        prisma.user.findUnique({
+          where: { id: userId },
+          select: {
+            referralCode: true,
+            referredById: true,
+            referrals: {
+              orderBy: { createdAt: "desc" },
+              select: { id: true, name: true, createdAt: true, image: true },
+            },
+          },
+        }),
+        prisma.submission.count({ where: { userId, status: "APPROVED" } }),
+        prisma.payout.findMany({
+          where: { userId, note: { startsWith: "ref:" } },
+          select: { amount: true, status: true },
+        }),
+      ]),
+    [`referrals-${userId}`],
+    { revalidate: 120, tags: [`referrals-${userId}`, `submissions-${userId}`] }
+  );
+
 // ── Admin queries (global, not per-user) ──────────────────────────────────────
 
 export const getAdminStats = unstable_cache(

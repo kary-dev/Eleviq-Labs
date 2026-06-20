@@ -1,27 +1,12 @@
+import { Suspense } from "react";
 import { requireUser } from "@/lib/session";
-import { prisma } from "@/lib/prisma";
 import { PageHeader, StatCard } from "@/components/ui";
 import { ReferralPanel } from "@/components/ReferralPanel";
 import { date, money } from "@/lib/format";
+import { cachedUserReferrals } from "@/lib/queries";
 
-export default async function ReferralsPage() {
-  const sessionUser = await requireUser();
-
-  const [me, approvedCount, commissions] = await Promise.all([
-    prisma.user.findUnique({
-      where: { id: sessionUser.id },
-      select: {
-        referralCode: true,
-        referredById: true,
-        referrals: { orderBy: { createdAt: "desc" }, select: { id: true, name: true, createdAt: true, image: true } },
-      },
-    }),
-    prisma.submission.count({ where: { userId: sessionUser.id, status: "APPROVED" } }),
-    prisma.payout.findMany({
-      where: { userId: sessionUser.id, note: { startsWith: "ref:" } },
-      select: { amount: true, status: true },
-    }),
-  ]);
+async function ReferralsContent({ userId }: { userId: string }) {
+  const [me, approvedCount, commissions] = await cachedUserReferrals(userId)();
 
   const referrals = me?.referrals ?? [];
   const hasEarned = approvedCount > 0;
@@ -30,14 +15,13 @@ export default async function ReferralsPage() {
 
   return (
     <>
-      <PageHeader
-        title="Referral Codes"
-        subtitle="Share your personal referral link to earn 10% of your friends' view rewards. Referred creators enjoy a 10% earnings boost for their first 10 days."
-      />
-
       <div className="mb-6 grid gap-4 sm:grid-cols-3">
         <StatCard label="Creators Referred" value={referrals.length} />
-        <StatCard label="Referral Earnings" value={money(referralEarned)} hint={referralPending > 0 ? `${money(referralPending)} pending` : "Lifetime commissions"} />
+        <StatCard
+          label="Referral Earnings"
+          value={money(referralEarned)}
+          hint={referralPending > 0 ? `${money(referralPending)} pending` : "Lifetime commissions"}
+        />
         <StatCard label="Reward Share" value="10%" hint="of your referrals' view rewards" />
       </div>
 
@@ -81,6 +65,43 @@ export default async function ReferralsPage() {
           </div>
         </section>
       )}
+    </>
+  );
+}
+
+function ReferralsSkeleton() {
+  return (
+    <>
+      <div className="mb-6 grid gap-4 sm:grid-cols-3">
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="card p-5">
+            <div className="mb-3 h-3 w-28 animate-pulse rounded bg-surface-2" />
+            <div className="mb-2 h-8 w-16 animate-pulse rounded bg-surface-2" />
+            <div className="h-3 w-36 animate-pulse rounded bg-surface-2" />
+          </div>
+        ))}
+      </div>
+      <div className="card p-6 space-y-4">
+        <div className="h-5 w-36 animate-pulse rounded bg-surface-2" />
+        <div className="h-10 w-full animate-pulse rounded-lg bg-surface-2" />
+        <div className="h-4 w-64 animate-pulse rounded bg-surface-2" />
+      </div>
+    </>
+  );
+}
+
+export default async function ReferralsPage() {
+  const user = await requireUser();
+
+  return (
+    <>
+      <PageHeader
+        title="Referral Codes"
+        subtitle="Share your personal referral link to earn 10% of your friends' view rewards. Referred creators enjoy a 10% earnings boost for their first 10 days."
+      />
+      <Suspense fallback={<ReferralsSkeleton />}>
+        <ReferralsContent userId={user.id!} />
+      </Suspense>
     </>
   );
 }
