@@ -54,7 +54,7 @@ export function SocialVerifyWizard({ accounts }: { accounts: Account[] }) {
   }
 
   return (
-    <div className="grid gap-6 md:grid-cols-2 items-start">
+    <div className="grid gap-7 md:grid-cols-2">
       {PLATFORM_KEYS.map((p) => (
         <PlatformCard
           key={p}
@@ -86,9 +86,9 @@ function PlatformCard({
       : "Not verified";
 
   return (
-    <div className="card flex flex-col p-6">
-      <div className="flex items-center gap-3">
-        <div className="grid h-11 w-11 place-items-center rounded-xl border border-border bg-surface-2">
+    <div className="card flex flex-col p-7">
+      <div className="flex items-center gap-4">
+        <div className="grid h-12 w-12 place-items-center rounded-xl border border-border bg-surface-2">
           <Icon className="h-5 w-5" />
         </div>
         <div className="flex-1">
@@ -105,13 +105,13 @@ function PlatformCard({
       </div>
 
       {accounts.length > 0 && (
-        <div className="mt-5 space-y-2.5">
+        <div className="mt-6 space-y-3">
           {accounts.map((a) => {
             const approved = a.verificationStatus === "APPROVED";
             return (
             <div
               key={a.id}
-              className="flex items-center gap-2 rounded-xl border border-border bg-surface-2/50 px-3.5 py-2.5 text-sm"
+              className="flex items-center gap-2 rounded-xl border border-border bg-surface-2/50 px-4 py-3 text-sm"
             >
               <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-full ${approved ? "bg-emerald-500/15 text-emerald-400" : "bg-amber-500/15 text-amber-400"}`}>
                 {approved ? <CheckIcon className="h-3.5 w-3.5" /> : <ShieldIcon className="h-3.5 w-3.5" />}
@@ -129,7 +129,7 @@ function PlatformCard({
         </div>
       )}
 
-      <button onClick={onAdd} className="btn-ghost mt-auto pt-5 w-full">
+      <button onClick={onAdd} className="btn-ghost mt-7 w-full">
         <PlusIcon className="h-4 w-4" /> Add Account
       </button>
     </div>
