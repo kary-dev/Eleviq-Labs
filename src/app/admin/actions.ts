@@ -151,15 +151,38 @@ export async function updateViews(id: string, views: number) {
       viewsDisputed: false, claimedViews: null, disputeNote: null,
     },
   });
+  await createNotification(
+    sub.userId,
+    "views_updated",
+    "View count updated",
+    `Your view count for "${sub.campaign.brand} — ${sub.campaign.title}" was corrected to ${views.toLocaleString()} views.`,
+    `/campaigns/${sub.campaignId}`
+  );
+  revalidateTag(`submissions-${sub.userId}`);
+  revalidateTag(`notifications-${sub.userId}`);
   revalidateAdmin();
 }
 
 export async function resolveViewDispute(id: string) {
   await ensureAdmin();
+  const sub = await prisma.submission.findUnique({
+    where: { id },
+    include: { campaign: { select: { brand: true, title: true, id: true } } },
+  });
+  if (!sub) return;
   await prisma.submission.update({
     where: { id },
     data: { viewsDisputed: false, claimedViews: null, disputeNote: null },
   });
+  await createNotification(
+    sub.userId,
+    "dispute_resolved",
+    "View dispute resolved",
+    `Your view dispute for "${sub.campaign.brand} — ${sub.campaign.title}" was reviewed. The fetched count was confirmed as accurate.`,
+    `/campaigns/${sub.campaign.id}`
+  );
+  revalidateTag(`submissions-${sub.userId}`);
+  revalidateTag(`notifications-${sub.userId}`);
   revalidateAdmin();
 }
 
