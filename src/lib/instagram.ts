@@ -217,7 +217,7 @@ class ApifyInstagram implements InstagramProvider {
 
   private async run(actor: string, input: unknown): Promise<any[] | null> {
     const res = await fetch(
-      `https://api.apify.com/v2/acts/${actor}/run-sync-get-dataset-items?token=${this.token}`,
+      `https://api.apify.com/v2/acts/${actor}/run-sync-get-dataset-items?token=${this.token}&timeout=45&memory=256`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -258,39 +258,33 @@ class ApifyInstagram implements InstagramProvider {
 
   async getPost(url: string): Promise<IgPost | null> {
     const isReel = /instagram\.com\/(?:reel|reels)\//i.test(url);
+    const expectedCode = extractShortcode(url);
 
     if (isReel) {
-      // Reel-specific actor returns accurate play counts.
       const reelActor = process.env.APIFY_REEL_ACTOR || "clockworks~instagram-reels-scraper";
-      const items = await this.run(reelActor, {
-        reelUrls: [url],
-        resultsLimit: 1,
-      });
+      const items = await this.run(reelActor, { reelUrls: [url], resultsLimit: 1 });
       const d = items?.[0];
       if (d) {
+        // Guard: discard if the actor returned data for the wrong reel.
+        const returnedCode = d.shortCode ?? d.shortcode ?? extractShortcode(d.url ?? "");
+        const codeMatch = !expectedCode || !returnedCode || returnedCode === expectedCode;
         const owner = String(d.ownerUsername ?? d.ownerName ?? d.owner?.username ?? "").toLowerCase();
-        if (owner) {
+        if (owner && codeMatch) {
           return {
             url,
-            shortcode: d.shortCode ?? d.shortcode ?? extractShortcode(url),
+            shortcode: returnedCode ?? expectedCode,
             ownerUsername: owner,
-            views: Number(
-              d.videoPlayCount ??
-              d.videoViewCount ??
-              d.playCount ??
-              d.play_count ??
-              d.viewCount ??
-              0
-            ),
+            views: Number(d.videoPlayCount ?? d.videoViewCount ?? d.playCount ?? d.play_count ?? d.viewCount ?? 0),
             likes: Number(d.likesCount ?? d.likeCount ?? 0),
             caption: d.caption ?? d.captionText ?? null,
-            thumbnailUrl: d.displayUrl ?? d.thumbnailUrl ?? d.coverUrl ?? null,
+            // Prefer coverUrl / thumbnailUrl — displayUrl on reels often returns wrong CDN image.
+            thumbnailUrl: d.coverUrl ?? d.videoPreviewImageUrl ?? d.thumbnailUrl ?? d.displayUrl ?? null,
           };
         }
       }
     }
 
-    // Regular posts (photos, carousels, videos at /p/ or /tv/).
+    // Regular posts (/p/ /tv/) and reel fallback.
     const items = await this.run(this.postActor, {
       directUrls: [url],
       resultsType: "posts",
@@ -303,21 +297,15 @@ class ApifyInstagram implements InstagramProvider {
     if (!owner) return null;
     return {
       url,
-      shortcode: d.shortCode ?? d.shortcode ?? extractShortcode(url),
+      shortcode: d.shortCode ?? d.shortcode ?? expectedCode,
       ownerUsername: owner,
       views: Number(
-        d.videoViewCount ??
-        d.videoPlayCount ??
-        d.playCount ??
-        d.play_count ??
-        d.video_view_count ??
-        d.viewCount ??
-        d.view_count ??
-        0
+        d.videoViewCount ?? d.videoPlayCount ?? d.playCount ?? d.play_count ??
+        d.video_view_count ?? d.viewCount ?? d.view_count ?? 0
       ),
       likes: Number(d.likesCount ?? d.likeCount ?? 0),
       caption: d.caption ?? d.captionText ?? null,
-      thumbnailUrl: d.displayUrl ?? d.thumbnailUrl ?? null,
+      thumbnailUrl: d.thumbnailUrl ?? d.displayUrl ?? null,
     };
   }
 }

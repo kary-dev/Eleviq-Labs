@@ -368,16 +368,25 @@ export async function bulkRefreshClips() {
     include: { campaign: { select: { ratePerThousand: true, minViews: true } } },
   });
 
+  // Fetch all posts in parallel — each Apify run is independent so they can
+  // run concurrently instead of waiting one-by-one (saves N×30s → ~30s).
+  const fetched = await Promise.allSettled(
+    subs.map(async (sub) => {
+      if (!platformHasProvider(sub.platform)) return null;
+      const post = await getPostFor(sub.platform, sub.url);
+      if (!post) return null;
+      return { sub, post };
+    })
+  );
+
   let refreshed = 0;
   let autoRejected = 0;
 
-  for (const sub of subs) {
+  for (const result of fetched) {
+    if (result.status !== "fulfilled" || !result.value) continue;
+    const { sub, post } = result.value;
+    const views = post.views;
     try {
-      if (!platformHasProvider(sub.platform)) continue;
-      const post = await getPostFor(sub.platform, sub.url);
-      if (!post) continue;
-      const views = post.views;
-
       await prisma.viewHistory.create({ data: { submissionId: sub.id, views } });
 
       if (sub.campaign.minViews > 0 && views < sub.campaign.minViews) {
@@ -394,7 +403,7 @@ export async function bulkRefreshClips() {
         refreshed++;
       }
     } catch {
-      // Skip failed clips
+      // Skip failed DB writes
     }
   }
 

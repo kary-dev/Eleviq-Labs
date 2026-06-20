@@ -55,7 +55,7 @@ class TikTokApify implements TikTokProvider {
 
   private async run(actor: string, input: unknown): Promise<any[] | null> {
     const res = await fetch(
-      `https://api.apify.com/v2/acts/${actor}/run-sync-get-dataset-items?token=${this.token}`,
+      `https://api.apify.com/v2/acts/${actor}/run-sync-get-dataset-items?token=${this.token}&timeout=45&memory=256`,
       { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input), cache: "no-store" }
     );
     if (!res.ok) return null;
