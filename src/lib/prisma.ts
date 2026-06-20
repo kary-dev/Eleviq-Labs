@@ -10,4 +10,7 @@ export const prisma =
     log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
   });
 
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+// Always cache on globalThis — reuses the same connection pool across hot-reloads
+// in dev AND across requests in production. Without this, production creates a
+// fresh PrismaClient (and a new 15-20s DB connection) on every request.
+globalForPrisma.prisma = prisma;
