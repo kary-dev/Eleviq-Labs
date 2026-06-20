@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { Sidebar } from "@/components/Sidebar";
 import { AdminTopBar } from "@/components/AdminTopBar";
+import { RealtimeRefresh } from "@/components/RealtimeRefresh";
 import { cachedUnreadCount } from "@/lib/queries";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -15,7 +16,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     <div className="min-h-screen lg:pl-72">
       <Sidebar user={session.user} variant="admin" unreadCount={unreadCount} />
       <AdminTopBar unreadCount={unreadCount} />
-      <main className="mx-auto max-w-6xl px-5 py-8 sm:px-8">{children}</main>
+      <main className="mx-auto max-w-6xl px-5 py-8 sm:px-8">
+        <RealtimeRefresh />
+        {children}
+      </main>
     </div>
   );
 }

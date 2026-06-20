@@ -4,6 +4,7 @@ import { revalidatePath, revalidateTag } from "next/cache";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { estPayout } from "@/lib/format";
+import { publish } from "@/lib/sse-bus";
 
 async function ensureAdmin() {
   const session = await auth();
@@ -26,6 +27,7 @@ async function createNotification(
   link?: string
 ) {
   await prisma.notification.create({ data: { userId, type, title, body, link } });
+  publish(userId);
 }
 
 function computeTier(approvedViews: number): string {
@@ -106,6 +108,8 @@ export async function approveSubmission(id: string) {
     `/campaigns/${sub.campaignId}`
   );
 
+  revalidateTag(`submissions-${sub.userId}`);
+  revalidateTag(`notifications-${sub.userId}`);
   revalidateAdmin();
 }
 
@@ -130,6 +134,8 @@ export async function rejectSubmission(id: string, reason: string) {
     `/campaigns/${sub.campaign.id}`
   );
 
+  revalidateTag(`submissions-${sub.userId}`);
+  revalidateTag(`notifications-${sub.userId}`);
   revalidateAdmin();
 }
 
