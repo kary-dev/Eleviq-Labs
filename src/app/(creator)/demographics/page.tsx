@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { requireUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { PageHeader, EmptyState } from "@/components/ui";
@@ -9,29 +10,58 @@ import {
   cachedUserDemographicProofs,
 } from "@/lib/queries";
 
-export default async function DemographicsPage() {
-  const user = await requireUser();
-
+async function DemographicsVerification({ userId }: { userId: string }) {
   const [settingsOrNull, accounts, proofs] = await Promise.all([
     getSiteSettings(),
-    cachedUserSocialAccountsForDemo(user.id)(),
-    cachedUserDemographicProofs(user.id)(),
+    cachedUserSocialAccountsForDemo(userId)(),
+    cachedUserDemographicProofs(userId)(),
   ]);
 
-  // Create singleton on first visit if it doesn't exist yet
   const settings =
     settingsOrNull ??
     (await prisma.siteSettings.create({
       data: { id: "singleton", demographicVerificationEnabled: false },
     }));
 
-  // Latest proof per socialAccountId
   const proofMap: Record<string, { status: string; method: string | null }> = {};
   for (const p of proofs) {
     if (p.socialAccountId && !proofMap[p.socialAccountId]) {
       proofMap[p.socialAccountId] = { status: p.status, method: p.method };
     }
   }
+
+  if (!settings.demographicVerificationEnabled) {
+    return (
+      <EmptyState
+        icon={<ChartIcon className="h-7 w-7" />}
+        title="Coming soon"
+        body="Demographic verification isn't enabled yet. Check back later."
+      />
+    );
+  }
+
+  return <DemographicsAccountSection accounts={accounts} proofMap={proofMap} />;
+}
+
+function DemographicsSkeleton() {
+  return (
+    <div className="card divide-y divide-border">
+      {[0, 1].map((i) => (
+        <div key={i} className="flex items-center gap-4 p-4">
+          <div className="h-10 w-10 animate-pulse rounded-full bg-surface-2" />
+          <div className="flex-1 space-y-2">
+            <div className="h-4 w-44 animate-pulse rounded bg-surface-2" />
+            <div className="h-3 w-28 animate-pulse rounded bg-surface-2" />
+          </div>
+          <div className="h-8 w-20 animate-pulse rounded-xl bg-surface-2" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export default async function DemographicsPage() {
+  const user = await requireUser();
 
   return (
     <>
@@ -59,7 +89,7 @@ export default async function DemographicsPage() {
               {
                 n: 3,
                 title: "Click Verify next to your account below",
-                body: 'Upload the screenshot, enter the country data shown, and submit for admin review.',
+                body: "Upload the screenshot, enter the country data shown, and submit for admin review.",
               },
               {
                 n: 4,
@@ -83,28 +113,19 @@ export default async function DemographicsPage() {
             <CheckIcon className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
             <p className="text-sm text-muted">
               <span className="font-semibold text-fg">No analytics access?</span>{" "}
-              Click Verify and choose &ldquo;I don&apos;t have demographics&rdquo; — you can still attach a screenshot explaining why.
+              Click Verify and choose &ldquo;I don&apos;t have demographics&rdquo; — you can still
+              attach a screenshot explaining why.
             </p>
           </div>
         </div>
       </section>
 
-      {/* ── Per-account verification ──────────────────────────────── */}
+      {/* ── Per-account verification — streamed in ───────────────── */}
       <section>
         <h2 className="mb-3 font-display text-base font-semibold">Demographic Verification</h2>
-
-        {!settings.demographicVerificationEnabled ? (
-          <EmptyState
-            icon={<ChartIcon className="h-7 w-7" />}
-            title="Coming soon"
-            body="Demographic verification isn't enabled yet. Check back later."
-          />
-        ) : (
-          <DemographicsAccountSection
-            accounts={accounts}
-            proofMap={proofMap}
-          />
-        )}
+        <Suspense fallback={<DemographicsSkeleton />}>
+          <DemographicsVerification userId={user.id} />
+        </Suspense>
       </section>
     </>
   );
