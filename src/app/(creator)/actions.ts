@@ -220,8 +220,8 @@ export async function requestViewRecheck(formData: FormData): Promise<{ ok: bool
   let disputeScreenshot: string | null = null;
   if (file && file.size > 0) {
     if (file.size > 10 * 1024 * 1024) return { ok: false, message: "Screenshot too large (max 10 MB)." };
-    const { put } = await import("@vercel/blob");
-    const blob = await put(`disputes/${sub.id}-${Date.now()}-${file.name}`, file, { access: "public" });
+    const { putFile } = await import("@/lib/storage");
+    const blob = await putFile(`disputes/${sub.id}-${Date.now()}-${file.name}`, file);
     disputeScreenshot = blob.url;
   }
 
@@ -585,15 +585,14 @@ export async function aiExtractDemographics(formData: FormData): Promise<AiExtra
   if (file.size > 10 * 1024 * 1024) return { ok: false, message: "File too large (max 10 MB)." };
 
   try {
-    const [{ put }, { extractDemographicsFromBytes }] = await Promise.all([
-      import("@vercel/blob"),
+    const [{ putFile }, { extractDemographicsFromBytes }] = await Promise.all([
+      import("@/lib/storage"),
       import("@/lib/ai-vision"),
     ]);
 
     const bytes = await file.arrayBuffer();
 
-    // Upload to Vercel Blob for admin to view later
-    const blob = await put(`demographics/${Date.now()}-${file.name}`, file, { access: "public" });
+    const blob = await putFile(`demographics/${Date.now()}-${file.name}`, file);
 
     const result = await extractDemographicsFromBytes(bytes, file.type || "image/jpeg");
     return { ok: true, countryData: result.countryData, totalViews: result.totalViews, imageUrl: blob.url };
@@ -617,8 +616,8 @@ export async function submitDemographicProof(formData: FormData): Promise<Submit
   let imageUrl: string | null = null;
   if (file && file.size > 0) {
     if (file.size > 10 * 1024 * 1024) return { ok: false, message: "Screenshot too large (max 10 MB)." };
-    const { put } = await import("@vercel/blob");
-    const blob = await put(`demographics/${userId}-${Date.now()}-${file.name}`, file, { access: "public" });
+    const { putFile } = await import("@/lib/storage");
+    const blob = await putFile(`demographics/${userId}-${Date.now()}-${file.name}`, file);
     imageUrl = blob.url;
   }
 
