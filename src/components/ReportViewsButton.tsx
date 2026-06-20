@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { requestViewRecheck } from "@/app/(creator)/actions";
+import { compressImage } from "@/lib/compress-image";
 import { XIcon } from "@/components/icons";
 
 function ReportForm({
@@ -20,13 +21,13 @@ function ReportForm({
   const [pending, start] = useTransition();
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const submit = () => {
+  const submit = async () => {
     const fd = new FormData();
     fd.set("submissionId", submissionId);
     fd.set("claimedViews", claimed);
     fd.set("note", note);
-    const file = fileRef.current?.files?.[0];
-    if (file) fd.set("screenshot", file);
+    const raw = fileRef.current?.files?.[0];
+    if (raw) fd.set("screenshot", await compressImage(raw));
     start(async () => {
       const r = await requestViewRecheck(fd);
       if (r.ok) onSent();

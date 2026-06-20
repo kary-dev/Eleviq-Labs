@@ -68,6 +68,8 @@ export function DisputeRow({ sub }: { sub: Dispute }) {
               <img
                 src={sub.disputeScreenshot}
                 alt="Insights screenshot"
+                loading="lazy"
+                decoding="async"
                 className="max-h-48 rounded-lg border border-border object-contain"
               />
               <span className="mt-0.5 block text-[10px] text-muted">View full screenshot</span>

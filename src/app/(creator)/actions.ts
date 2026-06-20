@@ -239,23 +239,22 @@ export async function requestViewRecheck(formData: FormData): Promise<{ ok: bool
   const note = String(formData.get("note") ?? "").trim().slice(0, 300) || null;
   const file = formData.get("screenshot") as File | null;
 
-  const sub = await prisma.submission.findFirst({ where: { id: submissionId, userId }, select: { id: true } });
-  if (!sub) return { ok: false, message: "Clip not found." };
+  if (file && file.size > 10 * 1024 * 1024) return { ok: false, message: "Screenshot too large (max 10 MB)." };
 
   let disputeScreenshot: string | null = null;
   if (file && file.size > 0) {
-    if (file.size > 10 * 1024 * 1024) return { ok: false, message: "Screenshot too large (max 10 MB)." };
     const { putFile } = await import("@/lib/storage");
-    const blob = await putFile(`disputes/${sub.id}-${Date.now()}-${file.name}`, file);
+    const blob = await putFile(`disputes/${submissionId}-${Date.now()}-${file.name}`, file);
     disputeScreenshot = blob.url;
   }
 
-  await prisma.submission.update({
-    where: { id: sub.id },
+  // Single DB round-trip: updateMany with userId in where clause for ownership check.
+  const result = await prisma.submission.updateMany({
+    where: { id: submissionId, userId },
     data: { viewsDisputed: true, claimedViews, disputeNote: note, disputeScreenshot },
   });
-  revalidatePath("/campaigns");
-  revalidatePath("/dashboard");
+  if (result.count === 0) return { ok: false, message: "Clip not found." };
+
   revalidateTag(`submissions-${userId}`);
   return { ok: true, message: "Sent to admin for a recheck." };
 }

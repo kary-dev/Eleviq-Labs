@@ -2,6 +2,7 @@
 
 import { useState, useTransition, useRef } from "react";
 import { submitDemographicProof } from "@/app/(creator)/actions";
+import { compressImage } from "@/lib/compress-image";
 import { UploadIcon, CheckIcon, ChartIcon } from "@/components/icons";
 
 type CountryEntry = { country: string; views: number };
@@ -45,7 +46,7 @@ export function DemographicWizard({ accountId, onDone }: { accountId: string; on
       fd.set("socialAccountId", accountId);
       fd.set("aiResult", JSON.stringify({ countryData: validRows, totalViews: null }));
       fd.set("note", manualNote || validRows.map((r) => `${r.country}: ${r.views}`).join(", "));
-      if (file) fd.set("screenshot", file);
+      if (file) fd.set("screenshot", await compressImage(file));
       const res = await submitDemographicProof(fd);
       if (!res.ok) { setSubmitError(res.message); return; }
       setPanel("done");
@@ -60,7 +61,7 @@ export function DemographicWizard({ accountId, onDone }: { accountId: string; on
       fd.set("method", "no_demographics");
       fd.set("socialAccountId", accountId);
       fd.set("note", noDemoNote || "Creator does not have access to demographic analytics.");
-      if (file) fd.set("screenshot", file);
+      if (file) fd.set("screenshot", await compressImage(file));
       const res = await submitDemographicProof(fd);
       if (!res.ok) { setSubmitError(res.message); return; }
       setPanel("done");

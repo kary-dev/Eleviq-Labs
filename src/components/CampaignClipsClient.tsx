@@ -63,15 +63,19 @@ function ClipSection({ title, items }: { title: string; items: SubmissionWithHis
                   {s.viewHistory && s.viewHistory.length >= 2 && (
                     <Sparkline values={s.viewHistory.map((h) => h.views)} className="shrink-0 text-accent/60" />
                   )}
-                  <span className="hidden sm:inline-flex">
-                    <ReportViewsButton submissionId={s.id} disputed={s.viewsDisputed} variant="modal" />
-                  </span>
+                  {s.status !== "REJECTED" && (
+                    <span className="hidden sm:inline-flex">
+                      <ReportViewsButton submissionId={s.id} disputed={s.viewsDisputed} variant="modal" />
+                    </span>
+                  )}
                 </>
               }
               footerAction={
-                <div className="sm:hidden">
-                  <ReportViewsButton submissionId={s.id} disputed={s.viewsDisputed} variant="expand" />
-                </div>
+                s.status !== "REJECTED" ? (
+                  <div className="sm:hidden">
+                    <ReportViewsButton submissionId={s.id} disputed={s.viewsDisputed} variant="expand" />
+                  </div>
+                ) : null
               }
             />
           </div>

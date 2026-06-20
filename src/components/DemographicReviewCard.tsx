@@ -49,7 +49,7 @@ export function DemographicReviewCard({ proof }: { proof: Proof }) {
       {proof.imageUrl && (
         <a href={proof.imageUrl} target="_blank" rel="noreferrer" className="group relative block overflow-hidden rounded-lg border border-border">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={proof.imageUrl} alt="Demographic screenshot" className="w-full object-cover" style={{ maxHeight: 200 }} />
+          <img src={proof.imageUrl} alt="Demographic screenshot" loading="lazy" decoding="async" className="w-full object-cover" style={{ maxHeight: 200 }} />
           <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition group-hover:opacity-100">
             <EyeIcon className="h-6 w-6 text-white" />
           </div>
