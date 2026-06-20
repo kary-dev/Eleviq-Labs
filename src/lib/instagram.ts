@@ -203,6 +203,47 @@ class RapidApiInstagram implements InstagramProvider {
  *   - posts:    apify/instagram-scraper          (input { directUrls, resultsType: "posts" })
  * Actor ids are overridable via env in case you fork/swap actors.
  */
+// ---------------------------------------------------------------------------
+// Direct fast-path for Instagram profile data (~200ms vs 20-45s via Apify).
+// Uses Instagram's internal web endpoint — no API key needed.
+// Returns null if blocked/rate-limited so callers can fall back to Apify.
+// ---------------------------------------------------------------------------
+async function tryIgDirectProfile(username: string): Promise<IgProfile | null> {
+  try {
+    const res = await fetch(
+      `https://i.instagram.com/api/v1/users/web_profile_info/?username=${encodeURIComponent(username)}`,
+      {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Instagram/303.0.0.30.109",
+          Accept: "*/*",
+          "Accept-Language": "en-US,en;q=0.9",
+          "X-IG-App-ID": "936619743392459",
+          Referer: "https://www.instagram.com/",
+        },
+        cache: "no-store",
+        signal: AbortSignal.timeout(6_000),
+      }
+    );
+    if (!res.ok) return null;
+    const json = await res.json().catch(() => null);
+    const d = json?.data?.user;
+    if (!d?.username) return null;
+    return {
+      username: String(d.username).toLowerCase(),
+      fullName: d.full_name ?? null,
+      biography: d.biography ?? "",
+      avatarUrl: d.profile_pic_url_hd ?? d.profile_pic_url ?? null,
+      followers: Number(d.edge_followed_by?.count ?? d.follower_count ?? 0),
+      isProfessional: Boolean(d.is_business_account || d.is_professional_account),
+      isPrivate: Boolean(d.is_private),
+      userId: d.id ? String(d.id) : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
 class ApifyInstagram implements InstagramProvider {
   readonly mode = "live" as const;
   private token: string;
@@ -215,9 +256,13 @@ class ApifyInstagram implements InstagramProvider {
     this.postActor = process.env.APIFY_POST_ACTOR || "apify~instagram-scraper";
   }
 
-  private async run(actor: string, input: unknown): Promise<any[] | null> {
+  private async run(
+    actor: string,
+    input: unknown,
+    { memory = 256, timeout = 45 }: { memory?: number; timeout?: number } = {}
+  ): Promise<any[] | null> {
     const res = await fetch(
-      `https://api.apify.com/v2/acts/${actor}/run-sync-get-dataset-items?token=${this.token}&timeout=45&memory=256`,
+      `https://api.apify.com/v2/acts/${actor}/run-sync-get-dataset-items?token=${this.token}&timeout=${timeout}&memory=${memory}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -232,7 +277,13 @@ class ApifyInstagram implements InstagramProvider {
 
   async getProfile(username: string): Promise<IgProfile | null> {
     const u = normalizeHandle(username);
-    const items = await this.run(this.profileActor, { usernames: [u] });
+
+    // Fast path: Instagram's internal endpoint (~200ms, no credits used).
+    const fast = await tryIgDirectProfile(u);
+    if (fast) return fast;
+
+    // Slow fallback: Apify actor. Use 128 MB (lighter = faster cold start).
+    const items = await this.run(this.profileActor, { usernames: [u] }, { memory: 128, timeout: 30 });
     const d = items?.[0];
     if (!d || !(d.username || d.id)) return null;
     return {
