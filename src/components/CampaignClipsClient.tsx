@@ -71,11 +71,11 @@ function ClipSection({ title, items }: { title: string; items: SubmissionWithHis
                 </>
               }
               footerAction={
-                s.status !== "REJECTED" ? (
+                s.status === "REJECTED" ? null : (
                   <div className="sm:hidden">
                     <ReportViewsButton submissionId={s.id} disputed={s.viewsDisputed} variant="expand" />
                   </div>
-                ) : null
+                )
               }
             />
           </div>
