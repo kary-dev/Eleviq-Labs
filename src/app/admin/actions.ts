@@ -27,6 +27,7 @@ async function createNotification(
   link?: string
 ) {
   await prisma.notification.create({ data: { userId, type, title, body, link } });
+  revalidateTag(`notifications-${userId}`);
   publish(userId);
 }
 

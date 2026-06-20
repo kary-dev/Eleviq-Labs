@@ -1,3 +1,4 @@
+import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { sendAdminEmail } from "@/lib/email";
 import { publish } from "@/lib/sse-bus";
@@ -16,6 +17,9 @@ export async function notifyAdmins(
   await prisma.notification.createMany({
     data: admins.map((a) => ({ userId: a.id, type, title, body, link: link ?? null })),
   });
-  for (const admin of admins) publish(admin.id);
+  for (const admin of admins) {
+    revalidateTag(`notifications-${admin.id}`);
+    publish(admin.id);
+  }
   await sendAdminEmail({ subject: title, title, body, link }).catch((e) => console.error("[email] send failed:", e));
 }
