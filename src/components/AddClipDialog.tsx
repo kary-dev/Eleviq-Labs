@@ -196,16 +196,16 @@ export function AddClipDialog({
                   </p>
                 </div>
 
-                {/* Instagram: username + ownership check only */}
+                {/* Ownership pre-check (instant — no Apify) */}
                 {auto && fetching && (
                   <div className="rounded-xl border border-border bg-surface-2/50 px-4 py-3 text-sm text-muted">
-                    Checking the account…
+                    Validating link…
                   </div>
                 )}
                 {auto && !fetching && preview && !preview.ok && (
                   <p className="text-sm text-rose-400">{preview.message}</p>
                 )}
-                {auto && !fetching && preview?.ok && (
+                {auto && !fetching && preview?.ok && !preview.previewOnly && (
                   <div className="rounded-xl border border-border bg-surface-2/50 px-4 py-3">
                     <div className="flex items-center gap-1.5 text-sm font-semibold">
                       @{preview.ownerUsername}
@@ -220,6 +220,11 @@ export function AddClipDialog({
                     {!preview.ownedByYou && (
                       <p className="mt-1 text-xs text-rose-400">{preview.message}</p>
                     )}
+                  </div>
+                )}
+                {auto && !fetching && preview?.ok && preview.previewOnly && (
+                  <div className="rounded-xl border border-border bg-surface-2/50 px-4 py-3 text-sm text-muted">
+                    Link looks valid — ownership verified on submit.
                   </div>
                 )}
 
@@ -256,7 +261,7 @@ export function AddClipDialog({
                 {error && <p className="text-sm text-rose-400">{error}</p>}
 
                 <button disabled={!canSubmit} onClick={submit} className="btn-accent w-full py-3">
-                  {pending ? "Submitting…" : "Submit clip for review"}
+                  {pending ? "Verifying & submitting…" : "Submit clip for review"}
                 </button>
                 <p className="text-center text-xs text-muted">
                   Final payout is confirmed after admin approval at {money(campaign.ratePerThousand)} / 1,000 views.

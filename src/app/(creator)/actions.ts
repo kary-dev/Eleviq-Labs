@@ -4,7 +4,8 @@ import { revalidatePath, revalidateTag } from "next/cache";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { estPayout } from "@/lib/format";
-import { extractShortcode } from "@/lib/instagram";
+import { extractShortcode, extractOwnerFromUrl } from "@/lib/instagram";
+import { extractTikTokVideoId } from "@/lib/tiktok";
 import {
   getProfileFor,
   getPostFor,
@@ -46,6 +47,7 @@ export type ClipPreview = {
   message?: string;
   ownerUsername?: string;
   ownedByYou?: boolean;
+  previewOnly?: boolean; // true = URL valid but ownership not checked yet (verified on submit)
 };
 
 /** Verified handles (lowercased) for the current user on a platform. */
@@ -82,8 +84,11 @@ async function ownsPost(
 }
 
 /**
- * Resolves the post's owner from its URL and tells the UI whether it belongs to
- * one of the creator's verified accounts. Stats are fetched at submit / refresh.
+ * Instant URL validation + ownership pre-check — NO Apify call.
+ * Extracts the owner handle directly from the URL when possible (Instagram reels
+ * with username in path, TikTok). Falls back to "will verify on submit" so the
+ * creator can proceed without waiting 30s for a scraper.
+ * The addClip action always re-verifies server-side before persisting.
  */
 export async function fetchClipPreview(platform: Platform, url: string): Promise<ClipPreview> {
   const userId = await uid();
@@ -93,20 +98,35 @@ export async function fetchClipPreview(platform: Platform, url: string): Promise
     return { ok: false, message: `Paste a valid ${PLATFORM_LABEL[platform]} link.` };
   }
 
-  const post = await getPostFor(platform, clean);
-  if (!post) return { ok: false, message: "Couldn't read that post. Check the link and try again." };
+  // Try to extract the owner handle from the URL — no network call needed.
+  let ownerFromUrl: string | null = null;
+  if (platform === "INSTAGRAM") {
+    // Works for instagram.com/<username>/reel/CODE — returns null for /p/CODE
+    ownerFromUrl = extractOwnerFromUrl(clean);
+  } else if (platform === "TIKTOK") {
+    // TikTok URLs: tiktok.com/@username/video/ID
+    const m = clean.match(/tiktok\.com\/@([^/?#]+)\/(?:video|photo)\//i);
+    ownerFromUrl = m ? m[1].toLowerCase() : null;
+  }
+  // YouTube: no handle in video URLs — always falls through to previewOnly
 
-  const ownedByYou = await ownsPost(userId, platform, post.ownerHandle, post.ownerId);
-  const ownerLabel = post.ownerHandle ? `@${post.ownerHandle}` : "that channel";
+  if (ownerFromUrl) {
+    // Fast path: just a DB query against verified social accounts
+    const ownedByYou = await ownsPost(userId, platform, ownerFromUrl, null);
+    return {
+      ok: true,
+      ownerUsername: ownerFromUrl,
+      ownedByYou,
+      message: ownedByYou
+        ? undefined
+        : `This post is from @${ownerFromUrl}, which isn't a verified account on your profile.`,
+    };
+  }
 
-  return {
-    ok: true,
-    ownerUsername: post.ownerHandle ?? post.ownerId ?? "",
-    ownedByYou,
-    message: ownedByYou
-      ? undefined
-      : `This post is from ${ownerLabel}, which isn't a verified account on your profile.`,
-  };
+  // URL format is valid but we can't determine the owner without scraping.
+  // Let submit do the full verification — return a permissive preview so the
+  // button enables immediately.
+  return { ok: true, ownerUsername: "", ownedByYou: true, previewOnly: true };
 }
 
 export type AddClipResult = { ok: true } | { ok: false; message: string };
