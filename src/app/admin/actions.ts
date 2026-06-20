@@ -427,27 +427,28 @@ export async function unblockCreator(userId: string) {
 
 export async function approvePayoutRequest(id: string) {
   await ensureAdmin();
-  const req = await prisma.payoutRequest.findUnique({ where: { id }, select: { userId: true, amount: true } });
-  if (!req) return;
-
-  await prisma.payoutRequest.update({ where: { id }, data: { status: "APPROVED", processedAt: new Date() } });
+  const req = await prisma.payoutRequest.update({
+    where: { id },
+    data: { status: "APPROVED", processedAt: new Date() },
+    select: { userId: true, amount: true },
+  });
   await createNotification(
     req.userId,
-    "payout_sent",
+    "payout_approved",
     "Payout approved!",
     `Your withdrawal request of $${req.amount.toFixed(2)} has been approved and will be processed shortly.`,
     "/earnings"
   );
-  revalidatePath("/admin/payouts");
   revalidateTag("admin-payouts");
 }
 
 export async function rejectPayoutRequest(id: string, note: string) {
   await ensureAdmin();
-  const req = await prisma.payoutRequest.findUnique({ where: { id }, select: { userId: true, amount: true } });
-  if (!req) return;
-
-  await prisma.payoutRequest.update({ where: { id }, data: { status: "REJECTED", adminNote: note, processedAt: new Date() } });
+  const req = await prisma.payoutRequest.update({
+    where: { id },
+    data: { status: "REJECTED", adminNote: note, processedAt: new Date() },
+    select: { userId: true, amount: true },
+  });
   await createNotification(
     req.userId,
     "payout_rejected",
@@ -455,45 +456,39 @@ export async function rejectPayoutRequest(id: string, note: string) {
     `Your withdrawal request of $${req.amount.toFixed(2)} was rejected. ${note ? `Reason: ${note}` : "Contact support for details."}`.trim(),
     "/earnings"
   );
-  revalidatePath("/admin/payouts");
   revalidateTag("admin-payouts");
 }
 
 export async function markPayoutRequestPaid(id: string) {
   await ensureAdmin();
-  const req = await prisma.payoutRequest.findUnique({ where: { id }, select: { userId: true, amount: true } });
-  if (!req) return;
+  const req = await prisma.payoutRequest.update({
+    where: { id },
+    data: { status: "PAID", processedAt: new Date() },
+    select: { userId: true, amount: true },
+  });
 
   const now = new Date();
+  await Promise.all([
+    prisma.payout.updateMany({
+      where: { userId: req.userId, status: "PENDING" },
+      data: { status: "PAID", paidAt: now },
+    }),
+    prisma.submission.updateMany({
+      where: { userId: req.userId, status: "APPROVED", paidAt: null },
+      data: { paidAt: now },
+    }),
+    createNotification(
+      req.userId,
+      "payout_sent",
+      "Payment sent!",
+      `$${req.amount.toFixed(2)} has been sent to your bank account.`,
+      "/earnings"
+    ),
+  ]);
 
-  await prisma.payoutRequest.update({ where: { id }, data: { status: "PAID", processedAt: now } });
-
-  // Mark all pending Payout ledger entries as PAID
-  await prisma.payout.updateMany({
-    where: { userId: req.userId, status: "PENDING" },
-    data: { status: "PAID", paidAt: now },
-  });
-
-  // Stamp submissions so they're excluded from future "available" calculations
-  await prisma.submission.updateMany({
-    where: { userId: req.userId, status: "APPROVED", paidAt: null },
-    data: { paidAt: now },
-  });
-
-  await createNotification(
-    req.userId,
-    "payout_sent",
-    "Payment sent!",
-    `$${req.amount.toFixed(2)} has been sent to your bank account.`,
-    "/earnings"
-  );
-
-  revalidatePath("/admin/payouts");
-  revalidatePath("/earnings");
-  revalidatePath("/dashboard");
+  revalidateTag(`submissions-${req.userId}`);
   revalidateTag("admin-payouts");
   revalidateTag("admin-stats");
-  revalidateTag(`submissions-${req.userId}`);
 }
 
 // --- Site settings ----------------------------------------------------------
