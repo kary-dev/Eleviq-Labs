@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import { useTransition, useState } from "react";
 import { approveAccount, rejectAccount } from "@/app/admin/actions";
 import { PLATFORMS, PlatformKey } from "@/lib/platforms";
 import { compact } from "@/lib/format";
@@ -20,8 +20,11 @@ type ReviewAccount = {
 };
 
 export function AccountReviewRow({ account }: { account: ReviewAccount }) {
-  const [pending, start] = useTransition();
+  const [, start] = useTransition();
+  const [dismissed, setDismissed] = useState(false);
   const { Icon, label } = PLATFORMS[account.platform as PlatformKey] ?? PLATFORMS.INSTAGRAM;
+
+  if (dismissed) return null;
 
   return (
     <div className="flex items-center gap-4 px-4 py-3.5">
@@ -51,16 +54,14 @@ export function AccountReviewRow({ account }: { account: ReviewAccount }) {
 
       <div className="flex shrink-0 gap-2">
         <button
-          disabled={pending}
-          onClick={() => start(() => approveAccount(account.id))}
+          onClick={() => { setDismissed(true); start(() => approveAccount(account.id)); }}
           className="btn-accent !px-3 !py-2"
           title="Approve"
         >
           <CheckIcon className="h-4 w-4" /> <span className="hidden sm:inline">Approve</span>
         </button>
         <button
-          disabled={pending}
-          onClick={() => start(() => rejectAccount(account.id))}
+          onClick={() => { setDismissed(true); start(() => rejectAccount(account.id)); }}
           className="btn-ghost !px-3 !py-2 hover:!text-rose-400"
           title="Reject"
         >

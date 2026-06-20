@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import { useTransition, useState } from "react";
 import { approveDemographicProof, rejectDemographicProof } from "@/app/admin/actions";
 import { date } from "@/lib/format";
 import { CheckIcon, XIcon, EyeIcon } from "@/components/icons";
@@ -18,7 +18,8 @@ type Proof = {
 };
 
 export function DemographicReviewCard({ proof }: { proof: Proof }) {
-  const [pending, start] = useTransition();
+  const [, start] = useTransition();
+  const [dismissed, setDismissed] = useState(false);
 
   let countryData: CountryEntry[] = [];
   let totalViews: number | null = null;
@@ -31,6 +32,8 @@ export function DemographicReviewCard({ proof }: { proof: Proof }) {
   }
 
   const noDemo = proof.method === "no_demographics";
+
+  if (dismissed) return null;
 
   return (
     <div className="card flex flex-col gap-4 p-5">
@@ -84,15 +87,13 @@ export function DemographicReviewCard({ proof }: { proof: Proof }) {
 
       <div className="flex gap-2">
         <button
-          disabled={pending}
-          onClick={() => start(() => approveDemographicProof(proof.id))}
+          onClick={() => { setDismissed(true); start(() => approveDemographicProof(proof.id)); }}
           className="btn-accent flex-1"
         >
           <CheckIcon className="h-4 w-4" /> Approve
         </button>
         <button
-          disabled={pending}
-          onClick={() => start(() => rejectDemographicProof(proof.id))}
+          onClick={() => { setDismissed(true); start(() => rejectDemographicProof(proof.id)); }}
           className="btn-ghost hover:!text-rose-400"
         >
           <XIcon className="h-4 w-4" /> Reject

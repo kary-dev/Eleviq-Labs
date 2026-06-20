@@ -25,10 +25,14 @@ type Request = {
 };
 
 export function PayoutRequestRow({ request: r }: { request: Request }) {
-  const [pending, start] = useTransition();
+  const [, start] = useTransition();
   const [rejectNote, setRejectNote] = useState("");
   const [showReject, setShowReject] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
+  const [status, setStatus] = useState(r.status);
   const bank = r.user.bankAccount;
+
+  if (dismissed) return null;
 
   return (
     <div className="card p-4">
@@ -59,11 +63,10 @@ export function PayoutRequestRow({ request: r }: { request: Request }) {
         <p className="mt-2 text-xs text-rose-400">No bank/PayPal details on file</p>
       )}
 
-      {r.status === "APPROVED" ? (
+      {status === "APPROVED" ? (
         <div className="mt-3 flex gap-2">
           <button
-            disabled={pending}
-            onClick={() => start(() => markPayoutRequestPaid(r.id))}
+            onClick={() => { setDismissed(true); start(() => markPayoutRequestPaid(r.id)); }}
             className="btn-accent flex-1"
           >
             Mark as Paid
@@ -81,8 +84,7 @@ export function PayoutRequestRow({ request: r }: { request: Request }) {
               />
               <div className="flex gap-2">
                 <button
-                  disabled={pending}
-                  onClick={() => start(async () => { await rejectPayoutRequest(r.id, rejectNote); setShowReject(false); })}
+                  onClick={() => { setDismissed(true); start(() => rejectPayoutRequest(r.id, rejectNote)); }}
                   className="btn-ghost flex-1 !text-rose-400 sm:flex-none"
                 >
                   Confirm
@@ -93,14 +95,12 @@ export function PayoutRequestRow({ request: r }: { request: Request }) {
           ) : (
             <div className="flex gap-2">
               <button
-                disabled={pending}
-                onClick={() => start(() => approvePayoutRequest(r.id))}
+                onClick={() => { setStatus("APPROVED"); start(() => approvePayoutRequest(r.id)); }}
                 className="btn-accent flex-1"
               >
                 <CheckIcon className="h-4 w-4" /> Approve
               </button>
               <button
-                disabled={pending}
                 onClick={() => setShowReject(true)}
                 className="btn-ghost !text-rose-400"
               >
