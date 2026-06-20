@@ -54,7 +54,7 @@ export function SocialVerifyWizard({ accounts }: { accounts: Account[] }) {
   }
 
   return (
-    <div className="grid gap-6 md:grid-cols-2">
+    <div className="grid gap-6 md:grid-cols-2 items-start">
       {PLATFORM_KEYS.map((p) => (
         <PlatformCard
           key={p}

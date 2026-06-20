@@ -24,6 +24,9 @@ const TYPE_COLOR: Record<string, string> = {
   proof_rejected: "bg-rose-500",
   account_rejected: "bg-rose-500",
   payout_rejected: "bg-rose-500",
+  views_updated: "bg-accent",
+  dispute_resolved: "bg-emerald-500",
+  payout_approved: "bg-accent",
 };
 
 type Action = { type: "all" } | { type: "one"; id: string };

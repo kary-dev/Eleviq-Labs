@@ -244,6 +244,42 @@ async function tryIgDirectProfile(username: string): Promise<IgProfile | null> {
   }
 }
 
+async function tryIgWebProfile(username: string): Promise<IgProfile | null> {
+  try {
+    const res = await fetch(
+      `https://www.instagram.com/${encodeURIComponent(username)}/?__a=1&__d=dis`,
+      {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+          Accept: "application/json, text/javascript, */*",
+          "Accept-Language": "en-US,en;q=0.9",
+          Referer: "https://www.instagram.com/",
+          "X-IG-App-ID": "936619743392459",
+          "X-Requested-With": "XMLHttpRequest",
+        },
+        cache: "no-store",
+        signal: AbortSignal.timeout(6_000),
+      }
+    );
+    if (!res.ok) return null;
+    const json = await res.json().catch(() => null);
+    const d = json?.graphql?.user ?? json?.data?.user;
+    if (!d?.username) return null;
+    return {
+      username: String(d.username).toLowerCase(),
+      fullName: d.full_name ?? null,
+      biography: d.biography ?? "",
+      avatarUrl: d.profile_pic_url_hd ?? d.profile_pic_url ?? null,
+      followers: Number(d.edge_followed_by?.count ?? d.follower_count ?? 0),
+      isProfessional: Boolean(d.is_business_account || d.is_professional_account),
+      isPrivate: Boolean(d.is_private),
+      userId: d.id ? String(d.id) : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
 class ApifyInstagram implements InstagramProvider {
   readonly mode = "live" as const;
   private token: string;
@@ -279,7 +315,7 @@ class ApifyInstagram implements InstagramProvider {
     const u = normalizeHandle(username);
 
     // Fast path: Instagram's internal endpoint (~200ms, no credits used).
-    const fast = await tryIgDirectProfile(u);
+    const fast = await tryIgDirectProfile(u) ?? await tryIgWebProfile(u);
     if (fast) return fast;
 
     // Slow fallback: Apify actor. Use 128 MB (lighter = faster cold start).

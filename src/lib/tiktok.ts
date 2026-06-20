@@ -44,6 +44,39 @@ export interface TikTokProvider {
   getVideo(url: string): Promise<TtVideo | null>;
 }
 
+async function tryTikTokDirect(username: string): Promise<TtProfile | null> {
+  try {
+    const res = await fetch(`https://www.tiktok.com/@${encodeURIComponent(username)}`, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+      },
+      cache: "no-store",
+      signal: AbortSignal.timeout(8_000),
+    });
+    if (!res.ok) return null;
+    const html = await res.text();
+    const m = html.match(/<script id="__NEXT_DATA__" type="application\/json">([^<]+)<\/script>/);
+    if (!m) return null;
+    const data = JSON.parse(m[1]);
+    const user =
+      data?.props?.pageProps?.userInfo?.user ??
+      data?.props?.pageProps?.userDetails?.user;
+    if (!user?.uniqueId) return null;
+    return {
+      username: String(user.uniqueId).toLowerCase(),
+      nickname: user.nickname ?? null,
+      bio: user.signature ?? "",
+      followers: Number(user.followerCount ?? user.stats?.followerCount ?? 0),
+      avatarUrl: user.avatarMedium ?? user.avatarLarger ?? null,
+      userId: user.id ? String(user.id) : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
 class TikTokApify implements TikTokProvider {
   readonly mode = "live" as const;
   private profileActor: string;
@@ -55,7 +88,7 @@ class TikTokApify implements TikTokProvider {
 
   private async run(actor: string, input: unknown): Promise<any[] | null> {
     const res = await fetch(
-      `https://api.apify.com/v2/acts/${actor}/run-sync-get-dataset-items?token=${this.token}&timeout=45&memory=256`,
+      `https://api.apify.com/v2/acts/${actor}/run-sync-get-dataset-items?token=${this.token}&timeout=25&memory=128`,
       { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input), cache: "no-store" }
     );
     if (!res.ok) return null;
@@ -66,6 +99,8 @@ class TikTokApify implements TikTokProvider {
   async getProfile(username: string): Promise<TtProfile | null> {
     const u = normalizeTikTokUsername(username);
     if (!u) return null;
+    const fast = await tryTikTokDirect(u);
+    if (fast) return fast;
     const items = await this.run(this.profileActor, { profiles: [u], resultsPerPage: 1, shouldDownloadVideos: false });
     const d = items?.[0];
     const a = d?.authorMeta ?? d;
