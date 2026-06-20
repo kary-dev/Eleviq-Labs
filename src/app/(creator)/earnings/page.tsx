@@ -13,7 +13,7 @@ export default async function EarningsPage() {
   const [approved, pendingSubs, payoutRequests, activePayoutReq] = await Promise.all([
     prisma.submission.findMany({
       where: { userId: user.id, status: "APPROVED" },
-      include: { campaign: { select: { title: true, brand: true } } },
+      include: { campaign: { select: { title: true, brand: true, ratePerThousand: true } } },
       orderBy: { reviewedAt: "desc" },
     }),
     prisma.submission.aggregate({
@@ -28,14 +28,18 @@ export default async function EarningsPage() {
     }),
   ]);
 
-  const totalEarned = approved.reduce((a, s) => a + s.payout, 0);
   const paid = payoutRequests.filter((p) => p.status === "PAID").reduce((a, p) => a + p.amount, 0);
 
-  // Eligibility: total approved views MINUS views already paid out.
+  // Eligibility: total approved views MINUS views already included in a paid payout.
   const totalViews = approved.reduce((a, s) => a + s.views, 0);
   const paidViews = approved.filter((s) => s.paidAt).reduce((a, s) => a + s.views, 0);
   const elig = payoutProgress(totalViews - paidViews);
-  const unpaidEarned = Math.max(0, totalEarned - paid);
+
+  // Available = live views × campaign rate for clips not yet paid out.
+  // Uses current view counts (not the stale payout field set at approval time).
+  const unpaidEarned = approved
+    .filter((s) => !s.paidAt)
+    .reduce((a, s) => a + (s.views / 1000) * s.campaign.ratePerThousand, 0);
   const lockedEarned = elig.eligible ? 0 : unpaidEarned;
   const available = elig.eligible ? unpaidEarned : 0;
 
@@ -44,11 +48,11 @@ export default async function EarningsPage() {
       <PageHeader title="Earnings" subtitle="Your payouts across all campaigns — past and pending." />
 
       <div className="mb-9 grid gap-4 sm:grid-cols-3">
-        <StatCard label="Total Earned" value={money(totalEarned)} hint="From approved clips" />
+        <StatCard label="Total Paid Out" value={money(paid)} hint="Lifetime withdrawals" />
         <StatCard
           label="Available to Withdraw"
           value={money(available)}
-          hint={lockedEarned > 0 ? `${money(lockedEarned)} locked · ${money(paid)} paid out` : `${money(paid)} paid out`}
+          hint={lockedEarned > 0 ? `${money(lockedEarned)} locked · reach 20k views to unlock` : `${money(paid)} paid out`}
         />
         <StatCard label="Pending Review" value={money(pendingSubs._sum.payout ?? 0)} hint={`${pendingSubs._count} clips awaiting approval`} />
       </div>
