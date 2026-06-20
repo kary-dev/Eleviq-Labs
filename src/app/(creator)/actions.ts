@@ -256,6 +256,7 @@ export async function requestViewRecheck(formData: FormData): Promise<{ ok: bool
   if (result.count === 0) return { ok: false, message: "Clip not found." };
 
   revalidateTag(`submissions-${userId}`);
+  notifyAdmins("view_dispute", "View dispute filed", "A creator disputed their view count and requested a recheck.", "/admin/submissions?tab=disputed").catch(() => {});
   return { ok: true, message: "Sent to admin for a recheck." };
 }
 
