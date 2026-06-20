@@ -1,7 +1,5 @@
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL!;
 const FROM = "Eleviq Labs <onboarding@resend.dev>";
 
 export async function sendAdminEmail({
@@ -15,7 +13,9 @@ export async function sendAdminEmail({
   body: string;
   link?: string;
 }) {
+  const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
   if (!process.env.RESEND_API_KEY || !ADMIN_EMAIL) return;
+  const resend = new Resend(process.env.RESEND_API_KEY);
 
   const linkHtml = link
     ? `<p style="margin-top:16px"><a href="https://eleviq-labs.vercel.app${link}" style="background:#e63946;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">View in Admin Panel →</a></p>`
