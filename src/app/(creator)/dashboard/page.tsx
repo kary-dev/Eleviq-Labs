@@ -94,14 +94,18 @@ async function RecentClipsSection({ userId }: { userId: string }) {
               key={s.id}
               s={s}
               actions={
-                <span className="hidden sm:inline-flex">
-                  <ReportViewsButton submissionId={s.id} disputed={s.viewsDisputed} variant="modal" />
-                </span>
+                s.status !== "REJECTED" ? (
+                  <span className="hidden sm:inline-flex">
+                    <ReportViewsButton submissionId={s.id} disputed={s.viewsDisputed} variant="modal" />
+                  </span>
+                ) : undefined
               }
               footerAction={
-                <div className="sm:hidden">
-                  <ReportViewsButton submissionId={s.id} disputed={s.viewsDisputed} variant="expand" />
-                </div>
+                s.status !== "REJECTED" ? (
+                  <div className="sm:hidden">
+                    <ReportViewsButton submissionId={s.id} disputed={s.viewsDisputed} variant="expand" />
+                  </div>
+                ) : undefined
               }
             />
           ))}
