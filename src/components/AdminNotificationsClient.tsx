@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import { useOptimistic, useTransition } from "react";
 import { markAllNotificationsRead, markNotificationRead } from "@/app/(creator)/actions";
 import { date } from "@/lib/format";
 
@@ -19,39 +19,59 @@ const TYPE_COLOR: Record<string, string> = {
   account_pending: "bg-amber-400",
   proof_pending: "bg-amber-400",
   payout_request: "bg-emerald-500",
+  view_dispute: "bg-amber-400",
   clip_approved: "bg-emerald-500",
   clip_rejected: "bg-rose-500",
 };
 
+type Action = { type: "all" } | { type: "one"; id: string };
+
 export function AdminNotificationsClient({ notifications }: { notifications: Notif[] }) {
-  const [pending, start] = useTransition();
-  const unread = notifications.filter((n) => !n.read).length;
+  const [, start] = useTransition();
+  const [items, dispatch] = useOptimistic(
+    notifications,
+    (state: Notif[], action: Action) => {
+      if (action.type === "all") return state.map((n) => ({ ...n, read: true }));
+      return state.map((n) => (n.id === action.id ? { ...n, read: true } : n));
+    }
+  );
+
+  const unread = items.filter((n) => !n.read).length;
+
+  function handleMarkAll() {
+    start(async () => {
+      dispatch({ type: "all" });
+      await markAllNotificationsRead();
+    });
+  }
+
+  function handleDismiss(id: string) {
+    start(async () => {
+      dispatch({ type: "one", id });
+      await markNotificationRead(id);
+    });
+  }
 
   return (
     <div>
       {unread > 0 && (
         <div className="mb-4 flex justify-end">
-          <button
-            disabled={pending}
-            onClick={() => start(() => markAllNotificationsRead())}
-            className="btn-ghost text-sm"
-          >
+          <button onClick={handleMarkAll} className="btn-ghost text-sm">
             Mark all as read
           </button>
         </div>
       )}
 
       <div className="card divide-y divide-border">
-        {notifications.map((n) => (
-          <AdminNotifRow key={n.id} n={n} />
+        {items.map((n) => (
+          <AdminNotifRow key={n.id} n={n} onDismiss={() => handleDismiss(n.id)} />
         ))}
       </div>
     </div>
   );
 }
 
-function AdminNotifRow({ n }: { n: Notif }) {
-  const [, start] = useTransition();
+function AdminNotifRow({ n, onDismiss }: { n: Notif; onDismiss: () => void }) {
   const dot = TYPE_COLOR[n.type] ?? "bg-muted";
 
   const inner = (
@@ -64,7 +84,7 @@ function AdminNotifRow({ n }: { n: Notif }) {
       </div>
       {!n.read && (
         <button
-          onClick={(e) => { e.preventDefault(); start(() => markNotificationRead(n.id)); }}
+          onClick={(e) => { e.preventDefault(); onDismiss(); }}
           className="shrink-0 self-start text-xs text-muted hover:text-fg"
         >
           Dismiss

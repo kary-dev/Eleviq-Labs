@@ -86,7 +86,7 @@ function PlatformCard({
       : "Not verified";
 
   return (
-    <div className="card p-5">
+    <div className="card flex flex-col p-5">
       <div className="flex items-center gap-3">
         <div className="grid h-11 w-11 place-items-center rounded-xl border border-border bg-surface-2">
           <Icon className="h-5 w-5" />
@@ -129,7 +129,7 @@ function PlatformCard({
         </div>
       )}
 
-      <button onClick={onAdd} className="btn-ghost mt-4 w-full">
+      <button onClick={onAdd} className="btn-ghost mt-auto pt-4 w-full">
         <PlusIcon className="h-4 w-4" /> Add Account
       </button>
     </div>
