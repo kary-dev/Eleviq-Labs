@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { unstable_cache } from "next/cache";
+import { SubmissionStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 // ── Shared (non-user-specific) ────────────────────────────────────────────────
@@ -143,7 +144,7 @@ export const getAdminSubmissions = unstable_cache(
   async (status: string, campaignId?: string) =>
     prisma.submission.findMany({
       where: {
-        ...(status === "DISPUTED" ? { viewsDisputed: true } : { status }),
+        ...(status === "DISPUTED" ? { viewsDisputed: true } : { status: status as SubmissionStatus }),
         ...(campaignId ? { campaignId } : {}),
       },
       include: {
