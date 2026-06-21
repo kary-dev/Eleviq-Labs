@@ -1,10 +1,9 @@
 "use client";
 
-import React from "react";
 import Link from "next/link";
 import { BellIcon } from "@/components/icons";
 
-export function AdminTopBar({ badge }: { badge?: React.ReactNode }) {
+export function AdminTopBar({ unreadCount = 0 }: { unreadCount?: number }) {
   return (
     <div className="fixed right-4 top-2.5 z-50 hidden items-center lg:flex lg:right-6 lg:top-3.5">
       <Link
@@ -13,7 +12,11 @@ export function AdminTopBar({ badge }: { badge?: React.ReactNode }) {
         title="Notifications"
       >
         <BellIcon className="h-6 w-6" />
-        {badge}
+        {unreadCount > 0 && (
+          <span className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-accent text-[10px] font-bold text-white">
+            {unreadCount > 9 ? "9+" : unreadCount}
+          </span>
+        )}
       </Link>
     </div>
   );
