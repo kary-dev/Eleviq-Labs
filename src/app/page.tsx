@@ -49,8 +49,6 @@ export default function LandingPage() {
             textDecoration: "none",
             transition: "background 0.15s",
           }}
-          onMouseOver={(e) => ((e.target as HTMLElement).style.background = "#dc2626")}
-          onMouseOut={(e) => ((e.target as HTMLElement).style.background = "#ef4444")}
         >
           Get started
         </a>
