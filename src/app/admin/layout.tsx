@@ -10,12 +10,14 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   if (!session?.user) redirect("/auth");
   if (session.user.role !== "ADMIN") redirect("/dashboard");
 
-  const unreadCount = await cachedUnreadCount(session.user.id!)();
+  // Fire in background — don't block the initial render on a DB round-trip.
+  // Cache warms up; the next router.refresh() (SSE) picks up the real count.
+  void cachedUnreadCount(session.user.id!)();
 
   return (
     <div className="min-h-screen lg:pl-72">
-      <Sidebar user={session.user} variant="admin" unreadCount={unreadCount} />
-      <AdminTopBar unreadCount={unreadCount} />
+      <Sidebar user={session.user} variant="admin" unreadCount={0} />
+      <AdminTopBar />
       <main className="mx-auto max-w-6xl px-5 py-8 sm:px-8">
         <RealtimeRefresh />
         {children}

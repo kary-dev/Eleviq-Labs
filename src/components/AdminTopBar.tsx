@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { BellIcon } from "@/components/icons";
 
-export function AdminTopBar({ unreadCount }: { unreadCount: number }) {
+export function AdminTopBar({ unreadCount = 0 }: { unreadCount?: number }) {
   return (
     <div className="fixed right-4 top-2.5 z-50 hidden items-center lg:flex lg:right-6 lg:top-3.5">
       <Link
