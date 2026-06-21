@@ -3,8 +3,6 @@ import { jwtDecrypt } from "jose";
 import { hkdf } from "@panva/hkdf";
 
 async function decodeSessionCookie(cookieValue: string, secret: string, cookieName: string) {
-  // Derive the encryption key exactly as @auth/core does:
-  // hkdf(sha256, secret, salt=cookieName, info="Auth.js Generated Encryption Key (cookieName)", 64)
   const key = await hkdf(
     "sha256",
     secret,
@@ -33,36 +31,10 @@ async function getToken(req: NextRequest) {
 }
 
 export async function middleware(req: NextRequest) {
-  const host = req.headers.get("host") ?? "";
-  const { pathname } = req.nextUrl;
-
-  // app.eleviqlabs.com OR localhost/dev → full app
-  const isAppDomain =
-    host.startsWith("app.") ||
-    host.includes("localhost") ||
-    host.includes("127.0.0.1");
-
-  // ── eleviqlabs.com — landing page only ──
-  if (!isAppDomain) {
-    const PUBLIC = ["/", "/brands", "/privacy"];
-    const isPublic = PUBLIC.some((p) => pathname === p || pathname.startsWith(p + "/"));
-    if (!isPublic) {
-      return NextResponse.redirect(`https://app.eleviqlabs.com${pathname}`);
-    }
-    return NextResponse.next();
-  }
-
-  // ── app.eleviqlabs.com — full auth logic ──
   const token = await getToken(req);
   const isLoggedIn = !!(token?.sub || (token as Record<string, unknown>)?.id);
   const role = (token as Record<string, unknown>)?.role ?? "CREATOR";
-
-  if (pathname === "/__mw_test") {
-    return new Response(
-      JSON.stringify({ mwVersion: "v7", host, isAppDomain, isLoggedIn, role }),
-      { headers: { "Content-Type": "application/json" } }
-    );
-  }
+  const { pathname } = req.nextUrl;
 
   const isAuthPage = pathname === "/auth";
   const isAdminArea = pathname.startsWith("/admin");
@@ -72,11 +44,10 @@ export async function middleware(req: NextRequest) {
       (p) => pathname === p || pathname.startsWith(p + "/")
     );
 
-  if (pathname === "/") {
-    const dest = isLoggedIn ? (role === "ADMIN" ? "/admin" : "/dashboard") : "/auth";
-    return NextResponse.redirect(new URL(dest, req.url));
-  }
+  // Root "/" → always show landing page
+  if (pathname === "/") return NextResponse.next();
 
+  // /auth → redirect logged-in users to dashboard
   if (isAuthPage) {
     if (isLoggedIn) {
       const dest = role === "ADMIN" ? "/admin" : "/dashboard";
