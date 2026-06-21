@@ -1,18 +1,32 @@
 import { NextRequest, NextResponse } from "next/server";
-import { decode } from "@auth/core/jwt";
+import { jwtDecrypt } from "jose";
+import { hkdf } from "@panva/hkdf";
+
+async function decodeSessionCookie(cookieValue: string, secret: string, cookieName: string) {
+  // Derive the encryption key exactly as @auth/core does:
+  // hkdf(sha256, secret, salt=cookieName, info="Auth.js Generated Encryption Key (cookieName)", 64)
+  const key = await hkdf(
+    "sha256",
+    secret,
+    cookieName,
+    `Auth.js Generated Encryption Key (${cookieName})`,
+    64
+  );
+  const { payload } = await jwtDecrypt(cookieValue, key, { clockTolerance: 15 });
+  return payload;
+}
 
 async function getToken(req: NextRequest) {
   const secret = process.env.AUTH_SECRET;
   if (!secret) return null;
 
-  // Production HTTPS uses __Secure- prefix; dev doesn't
-  const secureCookie = req.cookies.get("__Secure-authjs.session-token");
-  const devCookie = req.cookies.get("authjs.session-token");
-  const cookie = secureCookie ?? devCookie;
+  const secureName = "__Secure-authjs.session-token";
+  const devName = "authjs.session-token";
+  const cookie = req.cookies.get(secureName) ?? req.cookies.get(devName);
   if (!cookie) return null;
 
   try {
-    return await decode({ token: cookie.value, secret, salt: cookie.name });
+    return await decodeSessionCookie(cookie.value, secret, cookie.name);
   } catch {
     return null;
   }
@@ -20,7 +34,8 @@ async function getToken(req: NextRequest) {
 
 export async function middleware(req: NextRequest) {
   const token = await getToken(req);
-  const isLoggedIn = !!(token?.sub ?? (token as Record<string, unknown>)?.id);
+  // token.sub is the user's subject claim; token.id is what we store via jwt callback
+  const isLoggedIn = !!(token?.sub || (token as Record<string, unknown>)?.id);
   const role = (token as Record<string, unknown>)?.role ?? "CREATOR";
   const { pathname } = req.nextUrl;
 
