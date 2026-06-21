@@ -1,9 +1,10 @@
 "use client";
 
+import React from "react";
 import Link from "next/link";
 import { BellIcon, TrophyIcon } from "@/components/icons";
 
-export function CreatorTopBar({ unreadCount = 0 }: { unreadCount?: number }) {
+export function CreatorTopBar({ badge }: { badge?: React.ReactNode }) {
   return (
     <div className="fixed right-4 top-2.5 z-50 hidden items-center gap-1 lg:flex lg:right-6 lg:top-3.5">
       <Link
@@ -20,11 +21,7 @@ export function CreatorTopBar({ unreadCount = 0 }: { unreadCount?: number }) {
         title="Notifications"
       >
         <BellIcon className="h-6 w-6" />
-        {unreadCount > 0 && (
-          <span className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-accent text-[10px] font-bold text-white">
-            {unreadCount > 9 ? "9+" : unreadCount}
-          </span>
-        )}
+        {badge}
       </Link>
     </div>
   );

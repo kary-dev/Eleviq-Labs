@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import React, { useState } from "react";
 import { signOut } from "next-auth/react";
 import { Logo } from "@/components/Logo";
 import { ThemeToggle } from "@/components/theme";
@@ -36,12 +36,12 @@ export function Sidebar({
   user,
   variant = "creator",
   discordUrl = "https://discord.gg/N2BJXwnHfa",
-  unreadCount = 0,
+  badge,
 }: {
   user: { name?: string | null; email?: string | null; image?: string | null; role?: string };
   variant?: "creator" | "admin";
   discordUrl?: string;
-  unreadCount?: number;
+  badge?: React.ReactNode;
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -86,11 +86,7 @@ export function Sidebar({
             title="Notifications"
           >
             <BellIcon className="h-5 w-5" />
-            {unreadCount > 0 && (
-              <span className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-accent text-[10px] font-bold text-white">
-                {unreadCount > 9 ? "9+" : unreadCount}
-              </span>
-            )}
+            {badge}
           </Link>
           <ThemeToggle />
           <button onClick={() => setOpen(!open)} className="btn-ghost h-10 w-10 !p-0" aria-label="Menu">
