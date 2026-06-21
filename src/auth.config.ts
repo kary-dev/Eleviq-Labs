@@ -42,7 +42,8 @@ export const authConfig = {
           (p) => pathname === p || pathname.startsWith(p + "/")
         );
 
-      if (isAuthPage) {
+      // Redirect logged-in users away from root and auth page
+      if (pathname === "/" || isAuthPage) {
         if (isLoggedIn) {
           const dest = role === "ADMIN" ? "/admin" : "/dashboard";
           return Response.redirect(new URL(dest, nextUrl));
