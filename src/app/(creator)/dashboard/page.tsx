@@ -200,7 +200,7 @@ export default async function DashboardPage({
 
       {/* Join Discord banner */}
       <a
-        href="https://discord.gg/N2BJXwnHfa"
+        href="https://discord.gg/8pNRbsEzx"
         target="_blank"
         rel="noreferrer"
         className="mb-7 flex items-center justify-between gap-4 rounded-2xl border border-[#5865F2]/30 bg-[#5865F2]/10 p-5 transition hover:bg-[#5865F2]/15"

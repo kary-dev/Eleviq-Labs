@@ -35,7 +35,7 @@ const ADMIN_NAV = [
 export function Sidebar({
   user,
   variant = "creator",
-  discordUrl = "https://discord.gg/N2BJXwnHfa",
+  discordUrl = "https://discord.gg/8pNRbsEzx",
   badge,
 }: {
   user: { name?: string | null; email?: string | null; image?: string | null; role?: string };
